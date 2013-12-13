@@ -5,10 +5,10 @@
  * Each instance of this class should hold extraction patterns and other directives
  * for a website. See ContentExtractor class to see how it's used.
  * 
- * @version 0.6
- * @date 2011-10-30
+ * @version 0.7
+ * @date 2013-07-22
  * @author Keyvan Minoukadeh
- * @copyright 2011 Keyvan Minoukadeh
+ * @copyright 2013 Keyvan Minoukadeh
  * @license http://www.gnu.org/licenses/agpl-3.0.html AGPL v3
  */
 
@@ -20,6 +20,9 @@ class SiteConfig
 	// Use first matching element as body (0 or more xpath expressions)
 	public $body = array();
 	
+	// Skips entries matching these xpath expressions (0 or more)
+	public $skip_entry = array();
+
 	// Use first matching element as author (0 or more xpath expressions)
 	public $author = array();
 	
@@ -163,7 +166,7 @@ class SiteConfig
 			if ($command == '' || $val == '') continue;
 			
 			// check for commands where we accept multiple statements
-			if (in_array($command, array('title', 'body', 'author', 'date', 'strip', 'strip_id_or_class', 'strip_image_src', 'single_page_link', 'single_page_link_in_feed', 'http_header'))) {
+			if (in_array($command, array('skip_entry', 'title', 'body', 'author', 'date', 'strip', 'strip_id_or_class', 'strip_image_src', 'single_page_link', 'single_page_link_in_feed', 'http_header'))) {
 				array_push($config->$command, $val);
 			// check for single statement commands that evaluate to true or false
 			} elseif (in_array($command, array('tidy', 'prune', 'autodetect_on_failure'))) {
