@@ -1,6 +1,7 @@
 <?php
 ob_start();
 function tpl_header($title='Full-Text RSS Admin Area') {
+global $admin_page;
 ?>
 <!DOCTYPE html>
 <html>
@@ -13,6 +14,9 @@ function tpl_header($title='Full-Text RSS Admin Area') {
 	<script type="text/javascript" src="../js/bootstrap-tooltip.js"></script>
 	<script type="text/javascript" src="../js/bootstrap-popover.js"></script>
 	<script type="text/javascript" src="../js/bootstrap-tab.js"></script>
+	<script type="text/javascript" src="codemirror/codemirror.js"></script>
+	<script type="text/javascript" src="codemirror/properties.js"></script>
+	<link rel="stylesheet" href="codemirror/codemirror.css" />
   <style>
 	html, body { background-color: #eee; }
 	body { margin: 0; line-height: 1.4em; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; }
@@ -21,6 +25,10 @@ function tpl_header($title='Full-Text RSS Admin Area') {
 	.popover .inner { width: 200px; }
 	#main-container { width: 800px; padding-bottom: 60px; }
 	.page-header { padding-bottom: 0; }
+    .CodeMirror {border: 1px solid black; font-size:13px}
+	.cm-def {color: green !important;}
+	.cm-quote {color: #000 !important;}
+	.CodeMirror-scroll { height: auto; overflow: visible; }
   </style>
   </head>
   <body> 
@@ -30,7 +38,9 @@ function tpl_header($title='Full-Text RSS Admin Area') {
       <div class="container">
 	  <a class="brand" href="../">Full-Text RSS</a>
 		<ul class="nav">
-		  <li class="active"><a href="update.php">Update site patterns</a></li>
+		  <li <?php if (@$admin_page == 'update') echo 'class="active"'; ?>><a href="update.php">Update patterns</a></li>
+		  <li <?php if (@$admin_page == 'edit-pattern') echo 'class="active"'; ?>><a href="edit-pattern.php">Edit patterns</a></li>
+		  <li <?php if (@$admin_page == 'apc') echo 'class="active"'; ?>><a href="apc.php?OB=3">APC</a></li>		  
 		  <li><a href="index.php?logout">Logout</a></li>
 		</ul>
       </div>

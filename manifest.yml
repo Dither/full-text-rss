@@ -1,0 +1,16 @@
+# This file is only used when deploying Full-Text RSS to AppFog.
+# See http://help.fivefilters.org/customer/portal/articles/1143210-hosting
+---
+applications:
+  .:
+#    name: full-text-rss
+    framework:
+      name: php
+      info:
+        mem: 512M
+        description: PHP Application
+        exec: 
+    infra: aws
+#    url: ${name}.${target-base}
+    mem: 512M
+    instances: 1

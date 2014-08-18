@@ -40,4 +40,8 @@ tpl_header('Admin');
 
 ?>
 <p>The admin pages are intended to help you manage your copy of Full-Text RSS more easily.</p>
-<p>We currently offer an experimental <a href="update.php">update tool</a> which you can use to update your site patterns.</p>
+<ul>
+<li><a href="update.php">Update patterns</a>: an easy way to keep site config files up to date.</li>
+<li><a href="edit-pattern.php">Edit patterns</a>: need to fine-tune extraction for a certain site? Use this tool.</li>
+<li><a href="apc.php?OB=3">APC</a>: If APC is enabled, you can use this tool to see what Full-Text RSS caches, and clear the cache if you need to.</li>
+</ul>

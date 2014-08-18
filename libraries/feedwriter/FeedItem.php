@@ -22,6 +22,23 @@
 	{    
 		$this->version = $version;
 	}
+
+	/**
+	* Set element (overwrites existing elements with $elementName)
+	* 
+	* @access   public
+	* @param    srting  The tag name of an element
+	* @param    srting  The content of tag
+	* @param    array   Attributes(if any) in 'attrName' => 'attrValue' format
+	* @return   void
+	*/
+	public function setElement($elementName, $content, $attributes = null)
+	{
+		if (isset($this->elements[$elementName])) {
+			unset($this->elements[$elementName]);
+		}
+		$this->addElement($elementName, $content, $attributes);
+	}	
 	
 	/**
 	* Add an element to elements array
@@ -34,9 +51,15 @@
 	*/
 	public function addElement($elementName, $content, $attributes = null)
 	{
-		$this->elements[$elementName]['name']       = $elementName;
-		$this->elements[$elementName]['content']    = $content;
-		$this->elements[$elementName]['attributes'] = $attributes;
+		$i = 0;
+		if (isset($this->elements[$elementName])) {
+			$i = count($this->elements[$elementName]);
+		} else {
+			$this->elements[$elementName] = array();
+		}
+		$this->elements[$elementName][$i]['name']       = $elementName;
+		$this->elements[$elementName][$i]['content']    = $content;
+		$this->elements[$elementName][$i]['attributes'] = $attributes;
 	}
 	
 	/**
@@ -79,7 +102,7 @@
 	public function setDescription($description) 
 	{
 		$tag = ($this->version == ATOM)? 'summary' : 'description'; 
-		$this->addElement($tag, $description);
+		$this->setElement($tag, $description);
 	}
 	
 	/**
@@ -90,7 +113,7 @@
 	*/
 	public function setTitle($title) 
 	{
-		$this->addElement('title', $title);  	
+		$this->setElement('title', $title);  	
 	}
 	
 	/**
@@ -123,7 +146,7 @@
 			$value  = date("Y-m-d", $date);
 		}
 		
-		$this->addElement($tag, $value);    
+		$this->setElement($tag, $value);    
 	}
 	
 	/**
@@ -137,12 +160,12 @@
 	{
 		if($this->version == RSS2 || $this->version == RSS1)
 		{
-			$this->addElement('link', $link);
+			$this->setElement('link', $link);
 		}
 		else
 		{
-			$this->addElement('link','',array('href'=>$link));
-			$this->addElement('id', FeedWriter::uuid($link,'urn:uuid:'));
+			$this->setElement('link','',array('href'=>$link));
+			$this->setElement('id', FeedWriter::uuid($link,'urn:uuid:'));
 		} 
 		
 	}
@@ -160,7 +183,7 @@
 	public function setEncloser($url, $length, $type)
 	{
 		$attributes = array('url'=>$url, 'length'=>$length, 'type'=>$type);
-		$this->addElement('enclosure','',$attributes);
+		$this->setElement('enclosure','',$attributes);
 	}
 	
  } // end of class FeedItem

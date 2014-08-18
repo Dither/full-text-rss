@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:content="http://purl.org/rss/1.0/modules/content/">
 <xsl:output method="html" /> 
 <xsl:variable name="title" select="/rss/channel/title"/>		
 <xsl:template match="/">
@@ -22,7 +22,12 @@
       <xsl:for-each select="rss/channel/item">
       <div class="article">
         <li><a href="{link}" rel="bookmark"><xsl:value-of disable-output-escaping="yes" select="title"/></a>
-			<div><xsl:value-of disable-output-escaping="yes" select="description" /></div>
+			<div>
+			<xsl:choose>
+				<xsl:when test="content:encoded"><xsl:value-of disable-output-escaping="yes" select="content:encoded" /></xsl:when>
+				<xsl:when test="description"><xsl:value-of disable-output-escaping="yes" select="description" /></xsl:when>
+			</xsl:choose>
+			</div>
 		</li>        
       </div>
       </xsl:for-each>

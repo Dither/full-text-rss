@@ -7,11 +7,11 @@
  * For environments which do not have these options, it reverts to standard sequential 
  * requests (using file_get_contents())
  * 
- * @version 1.0
- * @date 2012-02-09
+ * @version 1.4
+ * @date 2013-05-10
  * @see http://php.net/HttpRequestPool
  * @author Keyvan Minoukadeh
- * @copyright 2011-2012 Keyvan Minoukadeh
+ * @copyright 2011-2013 Keyvan Minoukadeh
  * @license http://www.gnu.org/licenses/agpl-3.0.html AGPL v3
  */
 
@@ -22,7 +22,7 @@ class HumbleHttpAgent
 	const METHOD_FILE_GET_CONTENTS = 4;
 	//const UA_BROWSER = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:2.0.1) Gecko/20100101 Firefox/4.0.1';
 	const UA_BROWSER = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/535.2 (KHTML, like Gecko) Chrome/15.0.874.92 Safari/535.2';
-	const UA_PHP = 'PHP/5.2';
+	const UA_PHP = 'PHP/5.4';
 	const REF_GOOGLE = 'http://www.google.co.uk/url?sa=t&source=web&cd=1';
 	
 	protected $requests = array();
@@ -32,9 +32,10 @@ class HumbleHttpAgent
 	protected $cache = null; //TODO
 	protected $httpContext;
 	protected $minimiseMemoryUse = false; //TODO
-	protected $debug = false;
 	protected $method;
 	protected $cookieJar;
+	public $debug = false;
+	public $debugVerbose = false;
 	public $rewriteHashbangFragment = true; // see http://code.google.com/web/ajaxcrawling/docs/specification.html
 	public $maxRedirects = 5;
 	public $userAgentMap = array();
@@ -50,7 +51,10 @@ class HumbleHttpAgent
 	// URLs ending with one of these extensions will
 	// prompt Humble HTTP Agent to send a HEAD request first
 	// to see if returned content type matches $headerOnlyTypes.
-	public $headerOnlyClues = array('pdf','mp3','zip','exe','gif','gzip','gz','jpeg','jpg','mpg','mpeg','png','ppt','mov'); 
+	public $headerOnlyClues = array('pdf','mp3','zip','exe','gif','gzip','gz','jpeg','jpg','mpg','mpeg','png','ppt','mov');
+	// AJAX triggers to search for.
+	// for AJAX sites, e.g. Blogger with its dynamic views templates.
+	public $ajaxTriggers = array("<meta name='fragment' content='!'",'<meta name="fragment" content="!"',"<meta content='!' name='fragment'",'<meta content="!" name="fragment"');
 	
 	//TODO: set max file size
 	//TODO: normalise headers
@@ -78,6 +82,8 @@ class HumbleHttpAgent
 		// set request options (redirect must be 0)
 		$this->requestOptions = array(
 			'timeout' => 15,
+			'connecttimeout' => 15,
+			'dns_cache_timeout' => 300,
 			'redirect' => 0 // we handle redirects manually so we can rewrite the new hashbang URLs that are creeping up over the web
 			// TODO: test onprogress?
 		);
@@ -99,7 +105,8 @@ class HumbleHttpAgent
 			$mem = round(memory_get_usage()/1024, 2);
 			$memPeak = round(memory_get_peak_usage()/1024, 2);
 			echo '* ',$msg;
-			echo ' - mem used: ',$mem," (peak: $memPeak)\n";	
+			if ($this->debugVerbose) echo ' - mem used: ',$mem," (peak: $memPeak)";
+			echo "\n";
 			ob_flush();
 			flush();
 		}
@@ -148,6 +155,60 @@ class HumbleHttpAgent
 		$query['_escaped_fragment_'] = (string)$fragment;
 		$iri->query = str_replace('%2F', '/', http_build_query($query)); // needed for some sites
 		return $iri->get_iri();
+	}
+	
+	public function getRedirectURLfromHTML($url, $html) {
+		$redirect_url = $this->getMetaRefreshURL($url, $html);
+		if (!$redirect_url) {
+			$redirect_url = $this->getUglyURL($url, $html);
+		}
+		return $redirect_url;
+	}
+	
+	public function getMetaRefreshURL($url, $html) {
+		if ($html == '') return false;
+		// <meta HTTP-EQUIV="REFRESH" content="0; url=http://www.bernama.com/bernama/v6/newsindex.php?id=943513">
+		if (!preg_match('!<meta http-equiv=["\']?refresh["\']? content=["\']?[0-9];\s*url=["\']?([^"\'>]+)["\']*>!i', $html, $match)) {
+			return false;
+		}
+		$redirect_url = $match[1];
+		if (preg_match('!^https?://!i', $redirect_url)) {
+			// already absolute
+			$this->debug('Meta refresh redirect found (http-equiv="refresh"), new URL: '.$redirect_url);
+			return $redirect_url;
+		}
+		// absolutize redirect URL
+		$base = new SimplePie_IRI($url);
+		// remove '//' in URL path (causes URLs not to resolve properly)
+		if (isset($base->path)) $base->path = preg_replace('!//+!', '/', $base->path);
+		if ($absolute = SimplePie_IRI::absolutize($base, $redirect_url)) {
+			$this->debug('Meta refresh redirect found (http-equiv="refresh"), new URL: '.$absolute);
+			return $absolute;
+		}
+		return false;
+	}	
+	
+	public function getUglyURL($url, $html) {
+		if ($html == '') return false;
+		$found = false;
+		foreach ($this->ajaxTriggers as $string) {
+			if (stripos($html, $string)) {
+				$found = true;
+				break;
+			}
+		}
+		if (!$found) return false;
+		$iri = new SimplePie_IRI($url);
+		if (isset($iri->query)) {
+			parse_str($iri->query, $query);
+		} else {
+			$query = array();
+		}
+		$query['_escaped_fragment_'] = '';
+		$iri->query = str_replace('%2F', '/', http_build_query($query)); // needed for some sites
+		$ugly_url = $iri->get_iri();
+		$this->debug('AJAX trigger (meta name="fragment" content="!") found, new URL: '.$ugly_url);
+		return $ugly_url;
 	}
 	
 	public function removeFragment($url) {
@@ -308,6 +369,16 @@ class HumbleHttpAgent
 								$this->debug('Wrong guess at content-type, queing GET request');
 								$this->requests[$orig]['wrongGuess'] = true;
 								$this->redirectQueue[$orig] = $this->requests[$orig]['effective_url'];
+							} elseif (strpos($this->requests[$orig]['effective_url'], '_escaped_fragment_') === false) {
+								// check for <meta name='fragment' content='!'/>
+								// for AJAX sites, e.g. Blogger with its dynamic views templates.
+								// Based on Google's spec: https://developers.google.com/webmasters/ajax-crawling/docs/specification
+								if (isset($this->requests[$orig]['body'])) {
+									$redirectURL = $this->getRedirectURLfromHTML($this->requests[$orig]['effective_url'], substr($this->requests[$orig]['body'], 0, 4000));
+									if ($redirectURL) {
+										$this->redirectQueue[$orig] = $redirectURL;
+									}
+								}
 							}
 							//die($url.' -multi- '.$request->getResponseInfo('effective_url'));
 							$pool->detach($request);
@@ -416,12 +487,22 @@ class HumbleHttpAgent
 								$this->debug('Redirect detected. Invalid URL: '.$redirectURL);
 							}
 						} elseif (!$_header_only_type && $this->requests[$orig]['method'] == 'HEAD') {
-								// the response content-type did not match our 'header only' types, 
-								// but we'd issues a HEAD request because we assumed it would. So
-								// let's queue a proper GET request for this item...
-								$this->debug('Wrong guess at content-type, queing GET request');
-								$this->requests[$orig]['wrongGuess'] = true;
-								$this->redirectQueue[$orig] = $this->requests[$orig]['effective_url'];
+							// the response content-type did not match our 'header only' types, 
+							// but we'd issues a HEAD request because we assumed it would. So
+							// let's queue a proper GET request for this item...
+							$this->debug('Wrong guess at content-type, queing GET request');
+							$this->requests[$orig]['wrongGuess'] = true;
+							$this->redirectQueue[$orig] = $this->requests[$orig]['effective_url'];
+						} elseif (strpos($this->requests[$orig]['effective_url'], '_escaped_fragment_') === false) {
+							// check for <meta name='fragment' content='!'/>
+							// for AJAX sites, e.g. Blogger with its dynamic views templates.
+							// Based on Google's spec: https://developers.google.com/webmasters/ajax-crawling/docs/specification
+							if (isset($this->requests[$orig]['body'])) {
+								$redirectURL = $this->getRedirectURLfromHTML($this->requests[$orig]['effective_url'], substr($this->requests[$orig]['body'], 0, 4000));
+								if ($redirectURL) {
+									$this->redirectQueue[$orig] = $redirectURL;
+								}
+							}
 						}
 						// die($url.' -multi- '.$request->getResponseInfo('effective_url'));
 						unset($this->requests[$orig]['httpRequest'], $this->requests[$orig]['method']);
@@ -481,7 +562,7 @@ class HumbleHttpAgent
 							$this->requests[$orig]['status_code'] = $status_code = (int)$match[1];
 							unset($match);
 							// handle redirect
-							if (preg_match('/^Location:(.*?)$/m', $this->requests[$orig]['headers'], $match)) {
+							if (preg_match('/^Location:(.*?)$/mi', $this->requests[$orig]['headers'], $match)) {
 								$this->requests[$orig]['location'] =  trim($match[1]);
 							}
 							if ((in_array($status_code, array(300, 301, 302, 303, 307)) || $status_code > 307 && $status_code < 400) && isset($this->requests[$orig]['location'])) {
@@ -497,6 +578,16 @@ class HumbleHttpAgent
 									$this->redirectQueue[$orig] = $redirectURL;
 								} else {
 									$this->debug('Redirect detected. Invalid URL: '.$redirectURL);
+								}
+							} elseif (strpos($this->requests[$orig]['effective_url'], '_escaped_fragment_') === false) {
+								// check for <meta name='fragment' content='!'/>
+								// for AJAX sites, e.g. Blogger with its dynamic views templates.
+								// Based on Google's spec: https://developers.google.com/webmasters/ajax-crawling/docs/specification
+								if (isset($this->requests[$orig]['body'])) {
+									$redirectURL = $this->getRedirectURLfromHTML($this->requests[$orig]['effective_url'], substr($this->requests[$orig]['body'], 0, 4000));
+									if ($redirectURL) {
+										$this->redirectQueue[$orig] = $redirectURL;
+									}
 								}
 							}
 						}
@@ -520,7 +611,7 @@ class HumbleHttpAgent
 		$this->requests[$orig]['method'] = $request->method;
 		$this->requests[$orig]['effective_url'] = $info['url'];
 		$this->requests[$orig]['status_code'] = (int)$info['http_code'];
-		if (preg_match('/^Location:(.*?)$/m', $this->requests[$orig]['headers'], $match)) {
+		if (preg_match('/^Location:(.*?)$/mi', $this->requests[$orig]['headers'], $match)) {
 			$this->requests[$orig]['location'] =  trim($match[1]);
 		}
 	}
@@ -717,4 +808,3 @@ if (!function_exists('gzdecode')) {
 		return $data;
 	}
 }
-?>

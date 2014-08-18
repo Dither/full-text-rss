@@ -2,6 +2,59 @@ FiveFilters.org: Full-Text RSS
 http://fivefilters.org/content-only/
 CHANGELOG
 ------------------------------------
+3.2 (2013-05-14)
+ - A short excerpt from the first few lines of the extracted content can now be included in the output (pass &summary=1 in querystring, see $options->summary in config file for more info)
+ - Full content can now be excluded from the output (pass &content=0 in querystring, see $options->content in config file for more info) 
+ - Site config files can now be automatically updated from our GitHub repository (URL to call visible in admin area)
+ - Site config files updated for better extraction
+ - PHP Readability updated to be more lenient when pruning HTML 
+ - Language detection library updated
+ - HTML meta refresh redirects now also followed
+ - APC stats (if APC is available on your server) now visible in admin area
+ - Bug fix: Duplicate find_string and replace_string values in site config files no longer removed (thanks Fabrizio!)
+ - Bug fix: MIME type actions now applied when following single page URLs
+ - Other minor fixes/improvements
+
+3.1 (2013-03-06)
+ - PHP Readability updated to preserve more images/videos
+ - Site config files updated for better extraction
+ - SimplePie updated
+ - New config option favour_feed_titles and request parameter use_extracted_title to allow extracted titles to be used in generated feed
+ - Remove image lazy loading (looks for markup used by http://wordpress.org/extend/plugins/lazy-load/)
+ - <category> elements appearing inside <item> elements are now preserved in generated feed
+ - <media:thumbnail> elements now preserved
+ - Allow multiple <media:content> elements (previously only one was preserved)
+ - Bug fix: No more self-closing iframe elements
+ - Bug fix: Fixed manifest.yml to prevent error message when deploying to AppFog
+ - Other minor fixes/improvements
+
+3.0 (2012-09-04)
+ - Multi-page support - next_page_link now supported in site config (enable/disable with $options->multipage)
+ - HTML5 parser available - use parser: html5lib in site config, also see $options->allowed_parsers
+ - Updated site patterns for better extraction
+ - New global site config to be applied to all sites (global.txt)
+ - APC caching of site config files to improve performance, if APC available - see $options->apc 
+ - Site config editor in admin/ - easily find, edit, test, and test site config files, or add new ones
+ - Debug mode to see what's happening behind the scenes - see $options->debug
+ - Removed deprecated config options: restrict, message_to_prepend_with_key, message_to_append_with_key, error_message_with_key
+ - Removed extraction with CSS via querystring
+ - Removed config option: $options->alternative_url
+ - Bug fix: allow extraction of a single element
+ - Bug fix: redirect handling improved
+ - Strip 'http://' prefix when API key is supplied
+ - Site config merging (custom + standard + fingerprint + global)
+ - Site config command replace_string(find): replace can now be split over two lines: find_string: find, replace_string: replace
+ - YouTube and Vimeo URLs now return iframe embed code
+ - We now look for OpenGraph title and date elements
+ - Improved extraction from AJAX pages - we now look for AJAX triggers embedded in HTML, per Google spec
+ - JSONP support - use &format=json&callback=functionName in querystring
+ - New config option to enable Cross-Origin Resource Sharing (CORS): $option->cors
+ - New config option to enable XSS filtering, if required: $option->xss_filter
+ - Zend_Cache updated
+ - Smart caching - experimental feature to store cache IDs in APC first, and write output to disk on subsequent request (see $options->smart_cache)
+ - Easier cloud deploy - manifest.yml added for AppFog
+ - Override most config options with environment variables, e.g. ftr_max_entries: 3
+
 2.9.5 (2012-04-29)
  - Language detection using Text_LanguageDetect or PHP-CLD (dc:language field in output and $options->detect_language in config)
  - New site patterns added and old ones updated

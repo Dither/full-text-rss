@@ -1,6 +1,7 @@
 <?php
 define('RSS2', 1, true);
 define('JSON', 2, true);
+define('JSONP', 3, true);
 
  /**
  * Univarsel Feed Writer class
@@ -90,17 +91,28 @@ define('JSON', 2, true);
 	{
 		if ($this->version == RSS2) {
 			header('Content-type: text/xml; charset=UTF-8');
+			// this line prevents Chrome 20 from prompting download
+			// used by Google: https://news.google.com/news/feeds?ned=us&topic=b&output=rss
+			header('X-content-type-options: nosniff');
 		} elseif ($this->version == JSON) {
 			header('Content-type: application/json; charset=UTF-8');
+			$this->json = new stdClass();
+		} elseif ($this->version == JSONP) {
+			header('Content-type: application/javascript; charset=UTF-8');
 			$this->json = new stdClass();
 		}
 		$this->printHead();
 		$this->printChannels();
 		$this->printItems();
 		$this->printTale();
-		if ($this->version == JSON) {
+		if ($this->version == JSON || $this->version == JSONP) {
 			echo json_encode($this->json);
 		}
+	}
+	
+	public function &getItems()
+	{
+		return $this->items;
 	}
 	
 	/**
@@ -232,10 +244,10 @@ define('JSON', 2, true);
 		{
 			$out  = '<?xml version="1.0" encoding="utf-8"?>'."\n";
 			if ($this->xsl) $out .= '<?xml-stylesheet type="text/xsl" href="'.htmlspecialchars($this->xsl).'"?>' . PHP_EOL;
-			$out .= '<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">' . PHP_EOL;
+			$out .= '<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">' . PHP_EOL;
 			echo $out;
 		}
-		elseif ($this->version == JSON)
+		elseif ($this->version == JSON || $this->version == JSONP)
 		{
 			$this->json->rss = array('@attributes' => array('version' => '2.0'));
 		}
@@ -295,7 +307,7 @@ define('JSON', 2, true);
 			$nodeText .= "</$tagName>";
 			return $nodeText . PHP_EOL;
 		}
-		elseif ($this->version == JSON)
+		elseif ($this->version == JSON || $this->version == JSONP)
 		{
 			$tagName = (string)$tagName;
 			$tagName = strtr($tagName, ':', '_');
@@ -336,29 +348,25 @@ define('JSON', 2, true);
 	private function printChannels()
 	{
 		//Start channel tag
-		switch ($this->version) 
-		{
-		   case RSS2: 
-				echo '<channel>' . PHP_EOL;    
-				// add hubs
-				foreach ($this->hubs as $hub) {
-					//echo $this->makeNode('link', '', array('rel'=>'hub', 'href'=>$hub, 'xmlns'=>'http://www.w3.org/2005/Atom'));
-					echo '<link rel="hub"  href="'.htmlspecialchars($hub).'" xmlns="http://www.w3.org/2005/Atom" />' . PHP_EOL;
-				}
-				// add self
-				if (isset($this->self)) {
-					//echo $this->makeNode('link', '', array('rel'=>'self', 'href'=>$this->self, 'xmlns'=>'http://www.w3.org/2005/Atom'));
-					echo '<link rel="self" href="'.htmlspecialchars($this->self).'" xmlns="http://www.w3.org/2005/Atom" />' . PHP_EOL;
-				}
-				//Print Items of channel
-				foreach ($this->channels as $key => $value) 
-				{
-					echo $this->makeNode($key, $value);
-				}
-				break;
-		   case JSON: 
-				$this->json->rss['channel'] = (object)$this->json_keys($this->channels);
-				break;
+		if ($this->version == RSS2) {
+			echo '<channel>' . PHP_EOL;    
+			// add hubs
+			foreach ($this->hubs as $hub) {
+				//echo $this->makeNode('link', '', array('rel'=>'hub', 'href'=>$hub, 'xmlns'=>'http://www.w3.org/2005/Atom'));
+				echo '<link rel="hub"  href="'.htmlspecialchars($hub).'" xmlns="http://www.w3.org/2005/Atom" />' . PHP_EOL;
+			}
+			// add self
+			if (isset($this->self)) {
+				//echo $this->makeNode('link', '', array('rel'=>'self', 'href'=>$this->self, 'xmlns'=>'http://www.w3.org/2005/Atom'));
+				echo '<link rel="self" href="'.htmlspecialchars($this->self).'" xmlns="http://www.w3.org/2005/Atom" />' . PHP_EOL;
+			}
+			//Print Items of channel
+			foreach ($this->channels as $key => $value) 
+			{
+				echo $this->makeNode($key, $value);
+			}
+		} elseif ($this->version == JSON || $this->version == JSONP) {
+			$this->json->rss['channel'] = (object)$this->json_keys($this->channels);
 		}
 	}
 	
@@ -370,26 +378,31 @@ define('JSON', 2, true);
 	*/
 	private function printItems()
 	{    
-		foreach ($this->items as $item) 
-		{
-			$thisItems = $item->getElements();
+		foreach ($this->items as $item) {
+			$itemElements = $item->getElements();
 			
 			echo $this->startItem();
 			
-			if ($this->version == JSON) {
+			if ($this->version == JSON || $this->version == JSONP) {
 				$json_item = array();
 			}
 			
-			foreach ($thisItems as $feedItem ) 
-			{
-				if ($this->version == RSS2) {
-					echo $this->makeNode($feedItem['name'], $feedItem['content'], $feedItem['attributes']);
-				} elseif ($this->version == JSON) {
-					$json_item[strtr($feedItem['name'], ':', '_')] = $this->makeNode($feedItem['name'], $feedItem['content'], $feedItem['attributes']);
+			foreach ($itemElements as $thisElement) {
+				foreach ($thisElement as $instance) {			
+					if ($this->version == RSS2) {
+						echo $this->makeNode($instance['name'], $instance['content'], $instance['attributes']);
+					} elseif ($this->version == JSON || $this->version == JSONP) {
+						$_json_node = $this->makeNode($instance['name'], $instance['content'], $instance['attributes']);
+						if (count($thisElement) > 1) {
+							$json_item[strtr($instance['name'], ':', '_')][] = $_json_node;
+						} else {
+							$json_item[strtr($instance['name'], ':', '_')] = $_json_node;
+						}
+					}
 				}
 			}
 			echo $this->endItem();
-			if ($this->version == JSON) {
+			if ($this->version == JSON || $this->version == JSONP) {
 				if (count($this->items) > 1) {
 					$this->json->rss['channel']->item[] = $json_item;
 				} else {

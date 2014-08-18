@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Usage
 // -----
 // Set up your scheduler (e.g. cron) to request this file periodically.
-// Note: this file must not be named cleancache.php so please rename it.
+// Note: this file must _not_ be named cleancache.php so please rename it.
 // We ask you to do this to prevent others from initiating
 // the cache cleanup process. It will not run if it's called cleancache.php.
 
@@ -50,31 +50,18 @@ function __autoload($class_name) {
 		return false;
 	}
 }
-require_once(dirname(__FILE__).'/config.php');
+require_once dirname(__FILE__).'/config.php';
 if (!$options->caching) die('Caching is disabled');
 
-/*
-// clean http response cache
-$frontendOptions = array(
-   'lifetime' => 30*60, // cache lifetime of 30 minutes
-   'automatic_serialization' => true,
-   'write_control' => false,
-   'automatic_cleaning_factor' => 0,
-   'ignore_user_abort' => false
-);
-$backendOptions = array(
-	'cache_dir' => $options->cache_dir.'/http-responses/',
-	'file_locking' => false,
-	'read_control' => true,
-	'read_control_type' => 'strlen',
-	'hashed_directory_level' => $options->cache_directory_level,
-	'hashed_directory_umask' => 0777,
-	'cache_file_umask' => 0664,
-	'file_name_prefix' => 'ff'
-);
-$cache = Zend_Cache::factory('Core', 'File', $frontendOptions, $backendOptions);
-$cache->clean(Zend_Cache::CLEANING_MODE_OLD);
-*/
+// clean APC cache
+if ($options->apc && function_exists('apc_delete')) {
+	$_apc_data = apc_cache_info('user');
+	foreach ($_apc_data['cache_list'] as $_apc_item) {
+	  if ($_apc_item['ttl'] > 0 && ($_apc_item['ttl'] + $_apc_item['creation_time'] < time())) {
+		apc_delete($_apc_item['info']);
+	  }
+	}
+}
 
 // clean rss (non-key) cache
 $frontendOptions = array(
@@ -90,8 +77,8 @@ $backendOptions = array(
 	'read_control' => true,
 	'read_control_type' => 'strlen',
 	'hashed_directory_level' => $options->cache_directory_level,
-	'hashed_directory_umask' => 0777,
-	'cache_file_umask' => 0664,
+	'hashed_directory_perm' => 0777,
+	'cache_file_perm' => 0664,
 	'file_name_prefix' => 'ff'
 );
 $cache = Zend_Cache::factory('Core', 'File', $frontendOptions, $backendOptions);
@@ -111,8 +98,8 @@ $backendOptions = array(
 	'read_control' => true,
 	'read_control_type' => 'strlen',
 	'hashed_directory_level' => $options->cache_directory_level,
-	'hashed_directory_umask' => 0777,
-	'cache_file_umask' => 0664,
+	'hashed_directory_perm' => 0777,
+	'cache_file_perm' => 0664,
 	'file_name_prefix' => 'ff'
 );
 $cache = Zend_Cache::factory('Core', 'File', $frontendOptions, $backendOptions);

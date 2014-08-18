@@ -8,10 +8,8 @@ if (!defined('_FF_FTR_INDEX')) {
 		exit;
 	}
 }
-?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+?><!DOCTYPE html>
+<html>
   <head>
     <title>Full-Text RSS Feeds | from fivefilters.org</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />	
@@ -47,7 +45,7 @@ if (!defined('_FF_FTR_INDEX')) {
 	li.active a { font-weight: bold; color: #666 !important; }
 	form .controls { margin-left: 220px !important; }
 	label { width: 200px !important; }
-	fieldset legend { padding-left: 220px; line-height: 20px !important;}
+	fieldset legend { padding-left: 220px; line-height: 20px !important; margin-bottom: 10px !important;}
 	.form-actions { padding-left: 220px !important; }
 	.popover-inner { width: 205px; }
 	h1 { margin-bottom: 18px; }
@@ -66,14 +64,6 @@ if (!defined('_FF_FTR_INDEX')) {
 	</fieldset>
 	<fieldset>
 	<legend>Options</legend>
-	<!--
-	<?php if ($options->extraction_pattern == 'user') { ?>
-	<div class="control-group">
-	<label class="control-label" for="what">Extraction pattern:</label>
-	<div class="controls"><input type="text" id="what" name="what" value="auto" style="width: 250px;" /></div>
-	</div>
-	<?php } ?>	
-	-->
 	<?php if (isset($options->api_keys) && !empty($options->api_keys)) { ?>
 	<div class="control-group">
 	<label class="control-label" for="key">Access key</label>
@@ -125,10 +115,26 @@ if (!defined('_FF_FTR_INDEX')) {
 	</div>
 	<?php } ?>
 	
+	<?php if ($options->summary == 'user') { ?>
 	<div class="control-group">
+	<label class="control-label" for="summary">Include excerpt</label>
+	<div class="controls">
+	<input type="checkbox" name="summary" value="1" id="summary" style="margin-top: 7px;" />
+	</div>
+	</div>
+	<?php } ?>
+
+	<div class="control-group" style="margin-top: -15px;">
 	<label class="control-label" for="json">JSON output</label>
 	<div class="controls">
 	<input type="checkbox" name="format" value="json" id="json" style="margin-top: 7px;" />
+	</div>
+	</div>
+	
+	<div class="control-group" style="margin-top: -15px;">
+	<label class="control-label" for="debug">Debug</label>
+	<div class="controls">
+	<input type="checkbox" name="debug" value="1" id="debug" style="margin-top: 7px;" />
 	</div>
 	</div>	
 	
@@ -152,11 +158,7 @@ if (!defined('_FF_FTR_INDEX')) {
 	
 	<div class="active tab-pane" id="start">
 	
-	<h3>Thank you!</h3>
-	
-	<p>Thanks for downloading and setting up Full-Text RSS from FiveFilters.org. The software runs on most web hosting environments, but to make sure everything works as it should, please follow the steps below.</p>
-	
-	<h3>Quick Start</h3>
+	<h3>Quick start</h3>
 	<ol>
 		<li><a href="ftr_compatibility_test.php">Check server compatibility</a> to make sure this server meets the requirements</li>
 		<li>Enter a feed or article URL in the form above and click 'Create Feed' <a href="http://help.fivefilters.org/customer/portal/articles/223127-suggested-feeds-and-articles" rel="tooltip" title="Need suggestions? We've got a number of feeds and articles you can try" class="label">?</a></li>
@@ -176,6 +178,10 @@ if (!defined('_FF_FTR_INDEX')) {
 	</ul>
 	<p><?php if (!file_exists('custom_config.php')) { ?>To change the configuration, save a copy of <tt>config.php</tt> as <tt>custom_config.php</tt> and make any changes you like to it.<?php } else { ?>To change the configuration, edit <tt>custom_config.php</tt> and make any changes you like.<?php } ?></p>
 
+	<h3>Manage and update site config files</h3>
+	<p>For best results, we suggest you update the site config files bundled with Full-Text RSS.</p>
+	<p>The easiest way to update these is via the <a href="admin/">admin area</a>. (For advanced users, you'll also be able to edit and test the extraction rules contained in the site config files from the admin area.)</p>
+
 	<h3>Customise this page</h3>
 	<p>If everything works fine, feel free to modify this page by following the steps below:</p>
 	<ol>
@@ -187,8 +193,11 @@ if (!defined('_FF_FTR_INDEX')) {
 	<h3 id="support">Support</h3>
 	<p>Check our <a href="http://help.fivefilters.org">help centre</a> if you need help. You can also email us at <a href="mailto:help@fivefilters.org">help@fivefilters.org</a>.</p>
 	
+	<h3>Thank you!</h3>
+	<p>Thanks for downloading and setting up Full-Text RSS. This software is developed and maintained by FiveFilters.org. If you find it useful, but have not purchased this from us, please consider supporting us by purchasing from <a href="http://fivefilters.org/content-only/">FiveFilters.org</a>.</p>
+
 	</div>
-	
+
 	<!-- GENERAL TAB -->
 	
 	<div id="general" class="tab-pane">
@@ -233,9 +242,10 @@ if (!defined('_FF_FTR_INDEX')) {
 	</ul>
 	<p>Depending on your configuration, these <strong>secondary</strong> components may also be used:</p> 
 	<ul>
-		<li><a href="http://framework.zend.com/manual/en/zend.cache.introduction.html">Zend Cache</a></li>
-		<li><a href="http://framework.zend.com/manual/en/zend.dom.query.html">Zend DOM Query</a></li>
+		<li><a href="http://code.google.com/p/html5lib/">html5lib</a></li>
+		<li><a href="http://www.bioinformatics.org/phplabware/internal_utilities/htmLawed/">htmLawed</a></li>		
 		<li><a href="http://code.google.com/p/rolling-curl/">Rolling Curl</a></li>
+		<li><a href="http://framework.zend.com/manual/en/zend.cache.introduction.html">Zend Cache</a></li>
 		<li><a href="http://pear.php.net/package/Text_LanguageDetect">Text_LanguageDetect</a> or <a href="https://github.com/lstrojny/php-cld">PHP-CLD</a> if available</li>
 	</ul>
 
@@ -252,23 +262,23 @@ if (!defined('_FF_FTR_INDEX')) {
 	<!-- UPDATES TAB -->
 	<div id="updates" class="tab-pane">
 	<?php 
-	$site_config_version_file = dirname(__FILE__).'/site_config/standard/version.php';
+	$site_config_version_file = dirname(__FILE__).'/site_config/standard/version.txt';
 	if (file_exists($site_config_version_file)) {
-		$site_config_version = include($site_config_version_file);
+		$site_config_version = file_get_contents($site_config_version_file);
 	}
 	?>
 	<p>Your version of Full-Text RSS: <strong><?php echo _FF_FTR_VERSION; ?></strong><br />
 	Your version of Site Patterns: <strong><?php echo (isset($site_config_version) ? $site_config_version : 'Unknown'); ?></strong>
 	</p>
-	<p>To see if you have the latest versions, and to update your site patterns, please try our <a href="admin/update.php">update tool</a>.</p>
+	<p>To see if you have the latest versions, <a href="http://fivefilters.org/content-only/latest_version.php?version=<?php echo urlencode(_FF_FTR_VERSION).'&site_config='.urlencode(@$site_config_version); ?>">check for updates</a>.</p>
 	<p>If you've purchased this from FiveFilters.org, you'll receive notification when we release a new version or update the site patterns.</p>
 	</div>	
 	
 	<!-- LICENSE TAB -->
 	<div id="license" class="tab-pane">
 	<p><a href="http://en.wikipedia.org/wiki/Affero_General_Public_License" style="border-bottom: none;"><img src="images/agplv3.png" alt="AGPL logo" /></a></p>
-	<p>Full-Text RSS is licensed under the <a href="http://en.wikipedia.org/wiki/Affero_General_Public_License">AGPL version 3</a> &mdash; which basically means if you use the code to offer the same or similar service for your users, you are also required to share the code with your users so they can examine the code and run it for themselves. (<a href="http://www.clipperz.com/users/marco/blog/2008/05/30/freedom_and_privacy_cloud_call_action">More on why this is important.</a>)</p> 
-	<p>The software components used by the application are licensed as follows...</p>
+	<p>Full-Text RSS is licensed under the <a href="http://en.wikipedia.org/wiki/Affero_General_Public_License">AGPL version 3</a> &mdash; more information about why we use this license can be found on <a href="http://fivefilters.org/content-only/http://fivefilters.org/content-only/#license">FiveFilters.org</a></p> 
+	<p>The software components in this application are licensed as follows...</p>
 	<ul>
 		<li>PHP Readability: <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License v2</a></li>
 		<li>SimplePie: <a href="http://en.wikipedia.org/wiki/BSD_license">BSD</a></li>
@@ -276,6 +286,8 @@ if (!defined('_FF_FTR_INDEX')) {
 		<li>Humble HTTP Agent: <a href="http://en.wikipedia.org/wiki/Affero_General_Public_License">AGPL v3</a></li>
 		<li>Zend: <a href="http://framework.zend.com/license/new-bsd">New BSD</a></li>
 		<li>Rolling Curl: <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License v2</a></li>
+		<li>html5lib: <a href="http://opensource.org/licenses/mit-license.php">MIT</a></li>
+		<li>htmLawed: <a href="http://en.wikipedia.org/wiki/GNU_Lesser_General_Public_License">LGPL v3</a></li>
 		<li>Text_LanguageDetect: <a href="http://en.wikipedia.org/wiki/BSD_license">BSD</a></li>		
 	</ul>
 	</div>

@@ -1,4 +1,5 @@
 <?php
+header("X-Robots-Tag: noindex, nofollow", true);
 session_start();
 require_once(dirname(dirname(__FILE__)).'/config.php');
 if (!isset($options->admin_credentials) || $options->admin_credentials['username'] == '' || $options->admin_credentials['password'] == '') {
