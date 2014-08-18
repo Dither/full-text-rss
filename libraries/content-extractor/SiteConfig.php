@@ -20,6 +20,9 @@ class SiteConfig
 	// Use first matching element as body (0 or more xpath expressions)
 	public $body = array();
 	
+	// Skips entries matching these xpath expressions (0 or more)
+	public $skip_entry = array();
+
 	// Use first matching element as author (0 or more xpath expressions)
 	public $author = array();
 	
@@ -60,6 +63,10 @@ class SiteConfig
 	// bool or null if undeclared
 	public $prune = null;
 	protected $default_prune = true; // used if undeclared
+
+	// Converts images to data-URI format
+	public $images_to_datauri = null;
+	protected $default_images_to_datauri = false; // used if undeclared
 	
 	// Test URL - if present, can be used to test the config above
 	public $test_url = array();
@@ -102,7 +109,7 @@ class SiteConfig
 		if (self::$debug) {
 			//$mem = round(memory_get_usage()/1024, 2);
 			//$memPeak = round(memory_get_peak_usage()/1024, 2);
-			echo '* ',$msg;
+			echo '* ',$msg,"<br />";
 			//echo ' - mem used: ',$mem," (peak: $memPeak)\n";
 			echo "\n";
 			ob_flush();
@@ -136,6 +143,12 @@ class SiteConfig
 	public function prune($use_default=true) {
 		if ($use_default) return (isset($this->prune)) ? $this->prune : $this->default_prune;
 		return $this->prune;
+	}
+
+	// return bool or null
+	public function images_to_datauri($use_default=true) {
+		if ($use_default) return (isset($this->images_to_datauri)) ? $this->images_to_datauri : $this->default_images_to_datauri;
+		return $this->images_to_datauri;
 	}
 	
 	// return string or null
@@ -180,20 +193,15 @@ class SiteConfig
 	
 	public function append(SiteConfig $newconfig) {
 		// check for commands where we accept multiple statements (no test_url)
-		foreach (array('title', 'body', 'author', 'date', 'strip', 'strip_id_or_class', 'strip_image_src', 'single_page_link', 'single_page_link_in_feed', 'next_page_link', 'http_header') as $var) {
-			// append array elements for this config variable from $newconfig to this config
-			//$this->$var = $this->$var + $newconfig->$var;
+		foreach (array('skip_entry', 'title', 'body', 'author', 'date', 'strip', 'strip_id_or_class', 'strip_image_src', 'single_page_link', 'single_page_link_in_feed', 'next_page_link', 'http_header') as $var) {
 			$this->$var = array_unique(array_merge($this->$var, $newconfig->$var));
 		}
-		// check for single statement commands
-		// we do not overwrite existing non null values
+		// check for single statement commands; we do not overwrite existing non null values
 		foreach (array('tidy', 'prune', 'parser', 'autodetect_on_failure') as $var) {
 			if ($this->$var === null) $this->$var = $newconfig->$var;
 		}
 		// treat find_string and replace_string separately (don't apply array_unique) (thanks fabrizio!)
 		foreach (array('find_string', 'replace_string') as $var) {
-			// append array elements for this config variable from $newconfig to this config
-			//$this->$var = $this->$var + $newconfig->$var;
 			$this->$var = array_merge($this->$var, $newconfig->$var);
 		}
 	}
@@ -321,11 +329,11 @@ class SiteConfig
 			if ($command == '' || $val == '') continue;
 			
 			// check for commands where we accept multiple statements
-			if (in_array($command, array('title', 'body', 'author', 'date', 'strip', 'strip_id_or_class', 'strip_image_src', 'single_page_link', 'single_page_link_in_feed', 'next_page_link', 'http_header', 'test_url', 'find_string', 'replace_string'))) {
+			if (in_array($command, array('skip_entry', 'title', 'body', 'author', 'date', 'strip', 'strip_id_or_class', 'strip_image_src', 'single_page_link', 'single_page_link_in_feed', 'next_page_link', 'http_header', 'test_url', 'find_string', 'replace_string'))) {
 				array_push($config->$command, $val);
 			// check for single statement commands that evaluate to true or false
-			} elseif (in_array($command, array('tidy', 'prune', 'autodetect_on_failure'))) {
-				$config->$command = ($val == 'yes');
+			} elseif (in_array($command, array('images_to_datauri', 'tidy', 'prune', 'autodetect_on_failure'))) {
+				$config->$command = ($val == 'yes' || $val == 'true');
 			// check for single statement commands stored as strings
 			} elseif (in_array($command, array('parser'))) {
 				$config->$command = $val;

@@ -29,11 +29,11 @@ class HumbleHttpAgent
 	protected $redirectQueue = array();
 	protected $requestOptions;
 	protected $maxParallelRequests = 5;
-	protected $cache = null; //TODO
+	protected $cache = null;
 	protected $httpContext;
 	protected $minimiseMemoryUse = false; //TODO
-	protected $method;
 	protected $cookieJar;
+	public $method;
 	public $debug = false;
 	public $debugVerbose = false;
 	public $rewriteHashbangFragment = true; // see http://code.google.com/web/ajaxcrawling/docs/specification.html
@@ -99,12 +99,50 @@ class HumbleHttpAgent
 				)
 			);
 	}
+
+	public function initCache($dir, $level = 0, $cleanup = 100, $life = 3600) {
+		$this->debug('HTTP cache TTL is set to '.$life.' sec.');
+		$frontendOptions = array(
+			'lifetime' => $life, // cache lifetime
+			'automatic_serialization' => false,
+			'write_control' => false,
+			'automatic_cleaning_factor' => $cleanup,
+			'ignore_user_abort' => false
+		);
+		$backendOptions = array(
+			'cache_dir' => $dir.'/urls/', // directory where to put the cache files
+			'file_locking' => false,
+			'read_control' => true,
+			'read_control_type' => 'strlen',
+			'hashed_directory_level' => $level,
+			'hashed_directory_perm' => 0777,
+			'cache_file_perm' => 0664,
+			'file_name_prefix' => 'ff'
+		);
+		// getting a Zend_Cache_Core object
+		$this->cache = Zend_Cache::factory('Core', 'File', $frontendOptions, $backendOptions);
+	}
+
+	private function isCached($url) {
+		if (!$this->cache || !$url) return false;
+		return ($this->cache->test('request'.md5($url)) !== false);
+	}
+
+	private function setCached($url, $data) {
+		if (!$this->cache || !$url || !$data) return;
+		$this->cache->save(serialize($data), 'request'.md5($url));
+	}
 	
+	private function getCached($url) {
+		if (!$this->cache || !$url) return null;
+		return unserialize($this->cache->load('request'.md5($url)));
+	}
+
 	protected function debug($msg) {
 		if ($this->debug) {
 			$mem = round(memory_get_usage()/1024, 2);
 			$memPeak = round(memory_get_peak_usage()/1024, 2);
-			echo '* ',$msg;
+			echo '* ',$msg,"<br />";
 			if ($this->debugVerbose) echo ' - mem used: ',$mem," (peak: $memPeak)";
 			echo "\n";
 			ob_flush();
@@ -242,7 +280,7 @@ class HumbleHttpAgent
 	public function setMaxParallelRequests($max) {
 		$this->maxParallelRequests = $max;
 	}
-	
+
 	public function validateUrl($url) {
 		$url = filter_var($url, FILTER_SANITIZE_URL);
 		$test = filter_var($url, FILTER_VALIDATE_URL, FILTER_FLAG_SCHEME_REQUIRED);
@@ -286,13 +324,11 @@ class HumbleHttpAgent
 						$this->debug("...$url");
 						if (!$isRedirect && isset($this->requests[$url])) {
 							$this->debug("......in memory");
-						/*
 						} elseif ($this->isCached($url)) {
 							$this->debug("......is cached");
 							if (!$this->minimiseMemoryUse) {
 								$this->requests[$url] = $this->getCached($url);
 							}
-						*/
 						} else {
 							$this->debug("......adding to pool");
 							$req_url = $this->rewriteUrls($url);
@@ -381,6 +417,11 @@ class HumbleHttpAgent
 								}
 							}
 							//die($url.' -multi- '.$request->getResponseInfo('effective_url'));
+
+							if (isset($this->cache) && isset($this->requests[$orig]['body'])) {
+								 $this->setCached($orig, $this->requests[$orig]);
+							}
+
 							$pool->detach($request);
 							unset($this->requests[$orig]['httpRequest'], $request);
 							/*
@@ -415,13 +456,11 @@ class HumbleHttpAgent
 					$this->debug("...$url");
 					if (!$isRedirect && isset($this->requests[$url])) {
 						$this->debug("......in memory");
-					/*
 					} elseif ($this->isCached($url)) {
 						$this->debug("......is cached");
 						if (!$this->minimiseMemoryUse) {
 							$this->requests[$url] = $this->getCached($url);
 						}
-					*/
 					} else {
 						$this->debug("......adding to pool");
 						$req_url = $this->rewriteUrls($url);
@@ -503,6 +542,9 @@ class HumbleHttpAgent
 									$this->redirectQueue[$orig] = $redirectURL;
 								}
 							}
+						}
+						if (isset($this->cache) && isset($this->requests[$orig]['body'])) {
+							$this->setCached($orig, $this->requests[$orig]);
 						}
 						// die($url.' -multi- '.$request->getResponseInfo('effective_url'));
 						unset($this->requests[$orig]['httpRequest'], $this->requests[$orig]['method']);
@@ -603,7 +645,7 @@ class HumbleHttpAgent
 			}
 		}
 	}
-	
+
 	public function handleCurlResponse($response, $info, $request) {
 		$orig = $request->url_original;
 		$this->requests[$orig]['headers'] = substr($response, 0, $info['header_size']);
@@ -749,11 +791,11 @@ if (!function_exists('gzdecode')) {
 		if ($flags & 16) {
 			// C-style string COMMENT data in header
 			if ($len - $headerlen - 1 < 8) {
-				return false;    // invalid
+				return false; // invalid
 			}
 			$commentlen = strpos(substr($data,$headerlen),chr(0));
 			if ($commentlen === false || $len - $headerlen - $commentlen - 1 < 8) {
-				return false;    // Invalid header format
+				return false; // Invalid header format
 			}
 			$comment = substr($data,$headerlen,$commentlen);
 			$headerlen += $commentlen + 1;
@@ -762,14 +804,14 @@ if (!function_exists('gzdecode')) {
 		if ($flags & 2) {
 			// 2-bytes (lowest order) of CRC32 on header present
 			if ($len - $headerlen - 2 < 8) {
-				return false;    // invalid
+				return false; // invalid
 			}
 			$calccrc = crc32(substr($data,0,$headerlen)) & 0xffff;
 			$headercrc = unpack("v", substr($data,$headerlen,2));
 			$headercrc = $headercrc[1];
 			if ($headercrc != $calccrc) {
 				$error = "Header checksum failed.";
-				return false;    // Bad header CRC
+				return false; // Bad header CRC
 			}
 			$headerlen += 2;
 		}
@@ -808,3 +850,4 @@ if (!function_exists('gzdecode')) {
 		return $data;
 	}
 }
+?>

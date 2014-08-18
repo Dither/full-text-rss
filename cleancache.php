@@ -28,7 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 error_reporting(E_ALL ^ E_NOTICE);
 ini_set("display_errors", 1);
-@set_time_limit(120);
+@set_time_limit(200);
 
 // check file name
 if (basename(__FILE__) == 'cleancache.php') die('cleancache.php must be renamed');
@@ -94,6 +94,27 @@ $frontendOptions = array(
 );
 $backendOptions = array(
 	'cache_dir' => $options->cache_dir.'/rss-with-key/',
+	'file_locking' => false,
+	'read_control' => true,
+	'read_control_type' => 'strlen',
+	'hashed_directory_level' => $options->cache_directory_level,
+	'hashed_directory_perm' => 0777,
+	'cache_file_perm' => 0664,
+	'file_name_prefix' => 'ff'
+);
+$cache = Zend_Cache::factory('Core', 'File', $frontendOptions, $backendOptions);
+$cache->clean(Zend_Cache::CLEANING_MODE_OLD);
+
+// clean rss (urls) cache
+$frontendOptions = array(
+   'lifetime' => 60*60,
+   'automatic_serialization' => false,
+   'write_control' => false,
+   'automatic_cleaning_factor' => 0,
+   'ignore_user_abort' => false
+);
+$backendOptions = array(
+	'cache_dir' => $options->cache_dir.'/urls/',
 	'file_locking' => false,
 	'read_control' => true,
 	'read_control_type' => 'strlen',

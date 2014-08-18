@@ -1,0 +1,64 @@
+<?php
+/* Full-Text RSS config */
+$options->debug = true;
+$options->default_entries = 15;
+$options->max_entries = 40;
+$options->summary = 'user';
+$options->rewrite_relative_urls = true;
+$options->exclude_items_on_fail = 'user';
+$options->multipage = true;
+$options->caching = true;
+$options->cache_dir = dirname(__FILE__).'/cache';
+$options->error_message = '[unable to retrieve full-text content]';
+$options->keep_enclosures = true;
+$options->detect_language = 1;
+$options->registration_key = '';
+$options->admin_credentials = array('username'=>'admin0', 'password'=>'admin0');
+// Non-empty example: array('example.com', 'anothersite.org');
+$options->allowed_urls = array();
+$options->blocked_urls = array();
+$options->favour_feed_titles = 'user';
+$options->xss_filter = 'user';
+$options->allowed_parsers = array('libxml', 'html5lib');
+$options->cors = false;
+$options->apc = true;
+$options->smart_cache = true;
+$options->cache_ttl = 60*60;
+$options->http_cache_ttl = 3*24*60*60;
+$options->fingerprints = array(
+	// Posterous
+	'<meta name="generator" content="Posterous"' => array('hostname'=>'fingerprint.posterous.com', 'head'=>true),
+	// Blogger
+	'<meta content=\'blogger\' name=\'generator\'' => array('hostname'=>'fingerprint.blogspot.com', 'head'=>true),
+	'<meta name="generator" content="Blogger"' => array('hostname'=>'fingerprint.blogspot.com', 'head'=>true),
+	// WordPress (self-hosted and hosted)
+	'<meta name="generator" content="WordPress' => array('hostname'=>'fingerprint.wordpress.com', 'head'=>true)
+);
+$options->user_agents = array( 'lifehacker.com' => 'PHP/5.2',
+							   'gawker.com' => 'PHP/5.2',
+							   'deadspin.com' => 'PHP/5.2',
+							   'kotaku.com' => 'PHP/5.2',
+							   'jezebel.com' => 'PHP/5.2',
+							   'io9.com' => 'PHP/5.2',
+							   'jalopnik.com' => 'PHP/5.2',
+							   'gizmodo.com' => 'PHP/5.2',
+							   '.wikipedia.org' => 'Mozilla/5.2',
+							   '.fok.nl' => 'Googlebot/2.1',
+							   'getpocket.com' => 'PHP/5.2'
+							  );
+$options->rewrite_url = array(
+	// Rewrite public Google Docs URLs to point to HTML view:
+	// if a URL contains docs.google.com, replace /Doc? with /View?
+	'docs.google.com' => array('/Doc?' => '/View?'),
+	'tnr.com' => array('tnr.com/article/' => 'tnr.com/print/article/'),
+	'.m.wikipedia.org' => array('.m.wikipedia.org' => '.wikipedia.org'),
+	'm.vanityfair.com' => array('m.vanityfair.com' => 'www.vanityfair.com')
+);
+$options->content_type_exc = array( 
+							   'application/pdf' => array('action'=>'link', 'name'=>'PDF'),
+							   'image' => array('action'=>'link', 'name'=>'Image'),
+							   'audio' => array('action'=>'link', 'name'=>'Audio'),
+							   'video' => array('action'=>'link', 'name'=>'Video')
+							  );
+$options->cache_directory_level = 0;
+$options->cache_cleanup = 100;

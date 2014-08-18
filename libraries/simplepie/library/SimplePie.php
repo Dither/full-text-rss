@@ -61,7 +61,7 @@ define('SIMPLEPIE_BUILD', gmdate('YmdHis', SimplePie_Misc::get_build()));
 /**
  * SimplePie Website URL
  */
-define('SIMPLEPIE_URL', 'http://simplepie.org');
+define('SIMPLEPIE_URL', 'http://localhost');
 
 /**
  * SimplePie Useragent

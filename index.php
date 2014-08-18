@@ -103,19 +103,19 @@ if (!defined('_FF_FTR_INDEX')) {
 	</select>
 	</div>
 	</div>
-	<?php if ($options->exclude_items_on_fail == 'user') { ?>
+	<?php if ($options->exclude_items_on_fail === 'user') { ?>
 	<div class="control-group">
 	<label class="control-label" for="exc">If extraction fails</label>
 	<div class="controls">
 	<select name="exc" id="exc" title="Item handling when extraction fails" data-content="If extraction fails, we can remove the item from the feed or keep it in.<br /><br />Keeping the item will keep the title, URL and original description (if any) found in the feed. In addition, we insert a message before the original description notifying you that extraction failed.">
-		<option value="" selected="selected">keep item in feed</option>
-		<option value="1">remove item from feed</option>
+		<option value="">keep item in feed</option>
+		<option value="1" selected="selected">remove item from feed</option>
 	</select>
 	</div>
 	</div>
 	<?php } ?>
 	
-	<?php if ($options->summary == 'user') { ?>
+	<?php if ($options->summary === 'user') { ?>
 	<div class="control-group">
 	<label class="control-label" for="summary">Include excerpt</label>
 	<div class="controls">

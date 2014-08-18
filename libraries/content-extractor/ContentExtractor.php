@@ -14,23 +14,6 @@
 
 class ContentExtractor
 {
-	protected static $tidy_config = array(
-				 'clean' => true,
-				 'output-xhtml' => true,
-				 'logical-emphasis' => true,
-				 'show-body-only' => false,
-				 'new-blocklevel-tags' => 'article, aside, footer, header, hgroup, menu, nav, section, details, datagrid',
-				 'new-inline-tags' => 'mark, time, meter, progress, data',
-				 'wrap' => 0,
-				 'drop-empty-paras' => true,
-				 'drop-proprietary-attributes' => false,
-				 'enclose-text' => true,
-				 'enclose-block-text' => true,
-				 'merge-divs' => true,
-				 'merge-spans' => true,
-				 'char-encoding' => 'utf8',
-				 'hide-comments' => true
-				 );
 	protected $html;
 	protected $config;
 	protected $title;
@@ -54,7 +37,7 @@ class ContentExtractor
 		if ($this->debug) {
 			$mem = round(memory_get_usage()/1024, 2);
 			$memPeak = round(memory_get_peak_usage()/1024, 2);
-			echo '* ',$msg;
+			echo '* ',$msg,"<br />";
 			if ($this->debugVerbose) echo ' - mem used: ',$mem," (peak: $memPeak)";
 			echo "\n";
 			ob_flush();
@@ -166,23 +149,7 @@ class ContentExtractor
 			}
 			unset($_count);
 		}
-		
-		// use tidy (if it exists)?
-		// This fixes problems with some sites which would otherwise
-		// trouble DOMDocument's HTML parsing. (Although sometimes it
-		// makes matters worse, which is why you can override it in site config files.)
-		$tidied = false;
-		if ($this->config->tidy() && function_exists('tidy_parse_string') && $smart_tidy) {
-			$this->debug('Using Tidy');
-			$tidy = tidy_parse_string($html, self::$tidy_config, 'UTF8');
-			if (tidy_clean_repair($tidy)) {
-				$original_html = $html;
-				$tidied = true;
-				$html = $tidy->value;
-			}
-			unset($tidy);
-		}
-		
+
 		// load and parse html
 		$_parser = $this->config->parser();
 		if (!in_array($_parser, $this->allowedParsers)) {
@@ -190,11 +157,22 @@ class ContentExtractor
 			$_parser = 'libxml';
 		}
 		$this->debug("Attempting to parse HTML with $_parser");
-		$this->readability = new Readability($html, $url, $_parser);
+		$this->readability = new Readability($html, $url, $_parser, $this->config->tidy() && $smart_tidy);
+		$tidied = $this->readability->tidied;
 		
-		// we use xpath to find elements in the given HTML document
-		// see http://en.wikipedia.org/wiki/XPath_1.0
+		// we use xpath to find elements in the given HTML document; see http://en.wikipedia.org/wiki/XPath_1.0
 		$xpath = new DOMXPath($this->readability->dom);
+
+		// skip entries (using xpath expressions)
+		foreach ($this->config->skip_entry as $pattern) {
+			$elems = @$xpath->evaluate($pattern, $this->readability->dom);
+			// check for matches
+			if (is_string($elems) || ($elems instanceof DOMNodeList && $elems->length > 0)) {
+				$this->debug('Skipping entry on pattern.');
+				$this->debug("...XPath match: $pattern");
+				return false;
+			}
+		}
 
 		// try to get next page link
 		foreach ($this->config->next_page_link as $pattern) {
@@ -217,7 +195,7 @@ class ContentExtractor
 		
 		// try to get title
 		foreach ($this->config->title as $pattern) {
-			// $this->debug("Trying $pattern");
+			// $this->debug("Trying to get title $pattern");
 			$elems = @$xpath->evaluate($pattern, $this->readability->dom);
 			if (is_string($elems)) {
 				$this->title = trim($elems);
@@ -264,7 +242,7 @@ class ContentExtractor
 		}
 		
 		// try to get language
-		$_lang_xpath = array('//html[@lang]/@lang', '//meta[@name="DC.language"]/@content');
+		$_lang_xpath = array('//html[@lang]/@lang', '//body[@lang]/@lang', '//meta[@name="DC.language"]/@content');
 		foreach ($_lang_xpath as $pattern) {
 			$elems = @$xpath->evaluate($pattern, $this->readability->dom);
 			if (is_string($elems)) {
@@ -353,11 +331,11 @@ class ContentExtractor
 			}
 		}
 		
-		// strip elements that contain style="display: none;"
-		$elems = @$xpath->query("//*[contains(@style,'display:none')]", $this->readability->dom);
+		// strip elements that contain style 'display: none' or 'visibility:hidden'
+		$elems = @$xpath->query("//*[contains(@style,'display:none') or contains(@style,'visibility:hidden')]", $this->readability->dom);
 		// check for matches
 		if ($elems && $elems->length > 0) {
-			$this->debug('Stripping '.$elems->length.' elements with inline display:none style');
+			$this->debug('Stripping '.$elems->length.' elements with inline display:none or visibility:hidden style');
 			for ($i=$elems->length-1; $i >= 0; $i--) {
 				$elems->item($i)->parentNode->removeChild($elems->item($i));
 			}
@@ -366,6 +344,7 @@ class ContentExtractor
 		// try to get body
 		foreach ($this->config->body as $pattern) {
 			$elems = @$xpath->query($pattern, $this->readability->dom);
+			$this->debug("Matched $elems->length content element(s)");
 			// check for matches
 			if ($elems && $elems->length > 0) {
 				$this->debug('Body matched');
@@ -381,6 +360,7 @@ class ContentExtractor
 				} else {
 					$this->body = $this->readability->dom->createElement('div');
 					$this->debug($elems->length.' body elems found');
+					$len = 0;
 					foreach ($elems as $elem) {
 						if (!isset($elem->parentNode)) continue;
 						$isDescendant = false;
@@ -395,13 +375,17 @@ class ContentExtractor
 						} else {
 							// prune (clean up elements that may not be content)
 							if ($this->config->prune()) {
-								$this->debug('Pruning content');
+								$this->debug('...pruning content');
 								$this->readability->prepArticle($elem);
 							}
-							$this->debug('...element added to body');
-							$this->body->appendChild($elem);
+							if ($elem) {
+								$len++;
+								$this->body->appendChild($elem);
+							}
 						}
 					}
+					$this->debug('...'.$len.' elements added to body');
+					unset($len);
 					if ($this->body->hasChildNodes()) break;
 				}
 			}
@@ -503,7 +487,7 @@ class ContentExtractor
 						if ($elems->length == 1) {
 							// what if it's empty? (some sites misuse hNews - place their content outside an empty entry-content element)
 							$e = $elems->item(0);
-							if (($e->tagName == 'img') || (trim($e->textContent) != '')) {
+							if (strcasecmp($e->tagName, 'img') == 0 || (trim($e->textContent) != '')) {
 								$this->body = $elems->item(0);
 								// prune (clean up elements that may not be content)
 								if ($this->config->prune()) {
@@ -615,9 +599,10 @@ class ContentExtractor
 			if (isset($this->body)) $this->body = $this->body->cloneNode(true);
 			$success = $this->readability->init();
 		}
+
 		if ($detect_title) {
-			$this->debug('Detecting title');
 			$this->title = $this->readability->getTitle()->textContent;
+			$this->debug("Detected title \"$this->title\"");
 		}
 		if ($detect_body && $success) {
 			$this->debug('Detecting body');
@@ -659,7 +644,7 @@ class ContentExtractor
 			// the plugin replaces the src attribute to point to a 1x1 gif and puts the original src
 			// inside the data-lazy-src attribute. It also places the original image inside a noscript element 
 			// next to the amended one.
-			$elems = @$xpath->query("//img[@data-lazy-src]", $this->body);
+			$elems = @$xpath->query("//img[@data-lazy-src]|//img[@data-src]", $this->body);
 			for ($i = $elems->length-1; $i >= 0; $i--) {
 				$e = $elems->item($i);
 				// let's see if we can grab image from noscript
@@ -669,20 +654,31 @@ class ContentExtractor
 					$e->nextSibling->parentNode->replaceChild($_new_elem, $e->nextSibling);
 					$e->parentNode->removeChild($e);
 				} else {
-					// Use data-lazy-src as src value
-					$e->setAttribute('src', $e->getAttribute('data-lazy-src'));
+					// Use data[-lazy]-src as src value
+					$src = $e->getAttribute('data-lazy-src');
 					$e->removeAttribute('data-lazy-src');
+					if (!$src) {
+						$src = $e->getAttribute('data-src');
+						$e->removeAttribute('data-src');						
+					}
+					$e->setAttribute('src', $src);
 				}
 			}
 		
 			$this->success = true;
 		}
-		
+
 		// if we've had no success and we've used tidy, there's a chance
 		// that tidy has messed up. So let's try again without tidy...
 		if (!$this->success && $tidied && $smart_tidy) {
 			$this->debug('Trying again without tidy');
-			$this->process($original_html, $url, false);
+			unset($this->readability, $this->body, $xpath);
+			return $this->process($original_html, $url, false);
+		}
+
+		if ($this->success && $this->config->images_to_datauri()) {
+			$this->debug('Converting images to data-URI');
+			$this->readability->imageCache->cacheFromDocument($this->body);
 		}
 
 		return $this->success;

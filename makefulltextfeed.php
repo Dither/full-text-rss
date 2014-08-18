@@ -29,8 +29,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // For more request parameters, see http://help.fivefilters.org/customer/portal/articles/226660-usage
 
 error_reporting(E_ALL ^ E_NOTICE);
-ini_set("display_errors", 1);
-@set_time_limit(120);
+ini_set('display_errors', 'On');
+ini_set('xdebug.overload_var_dump', '0');
+mb_internal_encoding('UTF-8');
+@set_time_limit(600);
 
 // Deal with magic quotes
 if (get_magic_quotes_gpc()) {
@@ -51,6 +53,32 @@ if (get_magic_quotes_gpc()) {
 
 // set include path
 set_include_path(realpath(dirname(__FILE__).'/libraries').PATH_SEPARATOR.get_include_path());
+
+function encodeURI($url) {
+	// http://php.net/manual/en/function.rawurlencode.php
+	// https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/encodeURI
+	$reserved = array( '%2D'=>'-','%5F'=>'_','%2E'=>'.','%21'=>'!', '%2A'=>'*', '%27'=>"'", '%28'=>'(', '%29'=>')' );
+	$unescaped = array( '%3B'=>';','%2C'=>',','%2F'=>'/','%3F'=>'?','%3A'=>':', '%40'=>'@','%26'=>'&','%3D'=>'=','%2B'=>'+','%24'=>'$');
+	$score = array( '%23'=>'#' );
+
+	static $url_entities = null;
+	if ($url_entities === null) $url_entities = array_merge($reserved, $unescaped, $score);
+
+	$parsed_url = parse_url($url);
+
+	$scheme   = isset($parsed_url['scheme']) ? $parsed_url['scheme'] . '://' : '';
+	$host	 = isset($parsed_url['host']) ? $parsed_url['host'] : '';
+	$port	 = isset($parsed_url['port']) ? ':' . $parsed_url['port'] : '';
+	$user	 = isset($parsed_url['user']) ? $parsed_url['user'] : '';
+	$pass	 = isset($parsed_url['pass']) ? ':' . $parsed_url['pass']  : '';
+	$pass	 = ($user || $pass) ? "$pass@" : '';
+	$path	 = isset($parsed_url['path']) ? $parsed_url['path'] : '';
+	$query	= isset($parsed_url['query']) ? '?' . $parsed_url['query'] : '';
+	$fragment = isset($parsed_url['fragment']) ? '#' . $parsed_url['fragment'] : '';
+
+	return $scheme.$user.$pass.$host.$port.strtr(rawurlencode($path.$query.$fragment), $url_entities);
+}
+
 // Autoloading of classes allows us to include files only when they're
 // needed. If we've got a cached copy, for example, only Zend_Cache is loaded.
 function autoload($class_name) {
@@ -75,7 +103,7 @@ function autoload($class_name) {
 		// HTML5 Lib
 		'HTML5_Parser' => 'html5/Parser.php',
 		// htmLawed - used if XSS filter is enabled (xss_filter)
-		'htmLawed' => 'htmLawed/htmLawed.php'
+		'htmLawed' => 'htmLawed/htmLawed2.php'
 	);
 	if (isset($mapping[$class_name])) {
 		debug("** Loading class $class_name ({$mapping[$class_name]})");
@@ -106,8 +134,8 @@ header('X-Robots-Tag: noindex, nofollow');
 ////////////////////////////////
 // Check if service is enabled
 ////////////////////////////////
-if (!$options->enabled) { 
-	die('The full-text RSS service is currently disabled'); 
+if (!$options->enabled) {
+	die('The full-text RSS service is currently disabled');
 }
 
 ////////////////////////////////
@@ -115,15 +143,17 @@ if (!$options->enabled) {
 // See the config file for debug options.
 ////////////////////////////////
 $debug_mode = false;
-if (isset($_GET['debug'])) {
-	if ($options->debug === true || $options->debug == 'user') {
+if (isset($_GET['debug']) && intval($_GET['debug']) === 1) {
+	if ($options->debug === true || $options->debug === 'user') {
 		$debug_mode = true;
 	} elseif ($options->debug == 'admin') {
 		session_start();
-		$debug_mode = (@$_SESSION['auth'] == 1);
+		$debug_mode = (intval(@$_SESSION['auth']) === 1);
 	}
 	if ($debug_mode) {
-		header('Content-Type: text/plain; charset=utf-8');
+		header('Content-Type: text/html; charset=utf-8');
+		echo '<style>body {font:12px "Lucida Console", Monaco, monospace;}</style>';
+		debug('Running in debugging mode...');
 	} else {
 		if ($options->debug == 'admin') {
 			die('You must be logged in to the <a href="admin/">admin area</a> to see debug output.');
@@ -132,6 +162,7 @@ if (isset($_GET['debug'])) {
 		}
 	}
 }
+
 
 ////////////////////////////////
 // Check for APC
@@ -151,10 +182,10 @@ $options->smart_cache = $options->smart_cache && function_exists('apc_inc');
 ////////////////////////////////
 // Check for feed URL
 ////////////////////////////////
-if (!isset($_GET['url'])) { 
-	die('No URL supplied'); 
+if (!isset($_GET['url'])) {
+	die('No URL supplied');
 }
-$url = trim($_GET['url']);
+$url = filter_var(trim($_GET['url']), FILTER_SANITIZE_URL);
 if (strtolower(substr($url, 0, 7)) == 'feed://') {
 	$url = 'http://'.substr($url, 7);
 }
@@ -162,7 +193,6 @@ if (!preg_match('!^https?://.+!i', $url)) {
 	$url = 'http://'.$url;
 }
 
-$url = filter_var($url, FILTER_SANITIZE_URL);
 $test = filter_var($url, FILTER_VALIDATE_URL, FILTER_FLAG_SCHEME_REQUIRED);
 // deal with bug http://bugs.php.net/51192 (present in PHP 5.2.13 and PHP 5.3.2)
 if ($test === false) {
@@ -191,7 +221,7 @@ if (isset($_GET['key']) && ($key_index = array_search($_GET['key'], $options->ap
 	if (isset($_GET['links'])) $redirect .= '&links='.urlencode($_GET['links']);
 	if (isset($_GET['exc'])) $redirect .= '&exc='.urlencode($_GET['exc']);
 	if (isset($_GET['format'])) $redirect .= '&format='.urlencode($_GET['format']);
-	if (isset($_GET['callback'])) $redirect .= '&callback='.urlencode($_GET['callback']);	
+	if (isset($_GET['callback'])) $redirect .= '&callback='.urlencode($_GET['callback']);
 	if (isset($_GET['l'])) $redirect .= '&l='.urlencode($_GET['l']);
 	if (isset($_GET['xss'])) $redirect .= '&xss';
 	if (isset($_GET['use_extracted_title'])) $redirect .= '&use_extracted_title';
@@ -209,8 +239,7 @@ if (isset($_GET['key']) && ($key_index = array_search($_GET['key'], $options->ap
 
 ///////////////////////////////////////////////
 // Set timezone.
-// Prevents warnings, but needs more testing - 
-// perhaps if timezone is set in php.ini we
+// Prevents warnings, but needs more testing perhaps if timezone is set in php.ini we
 // don't need to set it at all...
 ///////////////////////////////////////////////
 if (!ini_get('date.timezone') || !@date_default_timezone_set(ini_get('date.timezone'))) {
@@ -220,7 +249,7 @@ if (!ini_get('date.timezone') || !@date_default_timezone_set(ini_get('date.timez
 ///////////////////////////////////////////////
 // Check if the request is explicitly for an HTML page
 ///////////////////////////////////////////////
-$html_only = (isset($_GET['html']) && ($_GET['html'] == '1' || $_GET['html'] == 'true'));
+$html_only = (isset($_GET['html']) && (intval($_GET['html']) == 1 || $_GET['html'] == 'true'));
 
 ///////////////////////////////////////////////
 // Check if valid key supplied
@@ -229,9 +258,9 @@ $valid_key = false;
 if (isset($_GET['key']) && isset($_GET['hash']) && isset($options->api_keys[(int)$_GET['key']])) {
 	$valid_key = ($_GET['hash'] == sha1($options->api_keys[(int)$_GET['key']].$url));
 }
-$key_index = ($valid_key) ? (int)$_GET['key'] : 0;
+$key_index = ($valid_key) ? intval($_GET['key']) : 0;
 if (!$valid_key && $options->key_required) {
-	die('A valid key must be supplied'); 
+	die('A valid key must be supplied');
 }
 if (!$valid_key && isset($_GET['key']) && $_GET['key'] != '') {
 	die('The entered key is invalid');
@@ -249,7 +278,7 @@ if (!url_allowed($url)) die('URL blocked');
 // see config.php to find these values
 ///////////////////////////////////////////////
 if (isset($_GET['max'])) {
-	$max = (int)$_GET['max'];
+	$max = intval($_GET['max']);
 	if ($valid_key) {
 		$max = min($max, $options->max_entries_with_key);
 	} else {
@@ -286,7 +315,7 @@ if ($options->favour_feed_titles == 'user') {
 // Include full content in output?
 ///////////////////////////////////////////////
 if ($options->content === 'user') {
-	if (isset($_GET['content']) && $_GET['content'] === '0') {
+	if (isset($_GET['content']) && intval($_GET['content']) === 0) {
 		$options->content = false;
 	} else {
 		$options->content = true;
@@ -297,7 +326,7 @@ if ($options->content === 'user') {
 // Include summaries in output?
 ///////////////////////////////////////////////
 if ($options->summary === 'user') {
-	if (isset($_GET['summary']) && $_GET['summary'] === '1') {
+	if (isset($_GET['summary']) && intval($_GET['summary']) === 1) {
 		$options->summary = true;
 	} else {
 		$options->summary = false;
@@ -308,7 +337,7 @@ if ($options->summary === 'user') {
 // Exclude items if extraction fails
 ///////////////////////////////////////////////
 if ($options->exclude_items_on_fail === 'user') {
-	$exclude_on_fail = (isset($_GET['exc']) && ($_GET['exc'] == '1'));
+	$exclude_on_fail = (isset($_GET['exc']) && (intval($_GET['exc']) === 1));
 } else {
 	$exclude_on_fail = $options->exclude_items_on_fail;
 }
@@ -318,7 +347,7 @@ if ($options->exclude_items_on_fail === 'user') {
 ///////////////////////////////////////////////
 if ($options->detect_language === 'user') {
 	if (isset($_GET['l'])) {
-		$detect_language = (int)$_GET['l'];
+		$detect_language = intval($_GET['l']);
 	} else {
 		$detect_language = 1;
 	}
@@ -375,24 +404,23 @@ if ($options->cors) header('Access-Control-Allow-Origin: *');
 //////////////////////////////////
 if ($options->caching) {
 	debug('Caching is enabled...');
-	$cache_id = md5($max.$url.(int)$valid_key.$links.(int)$favour_feed_titles.(int)$options->content.(int)$options->summary.(int)$xss_filter.(int)$exclude_on_fail.$format.$detect_language.(int)isset($_GET['pubsub']));
+	$cache_id = md5((int)$max.$url.$links.(int)$favour_feed_titles.(int)$options->content.(int)$options->summary.(int)$xss_filter.(int)$exclude_on_fail.$format.$detect_language);
 	$check_cache = true;
-	if ($options->apc && $options->smart_cache) {
-		apc_add("cache.$cache_id", 0, 10*60);
-		$apc_cache_hits = (int)apc_fetch("cache.$cache_id");
-		$check_cache = ($apc_cache_hits >= 2);
+	if ($options->apc === true && $options->smart_cache === true) {
+		apc_add("cache.$cache_id", 0, isset($options->cache_ttl) ? $options->cache_ttl : 10*60);
+		$apc_cache_hits = intval(apc_fetch("cache.$cache_id"));
 		apc_inc("cache.$cache_id");
-		if ($check_cache) {
+		if ($check_cache = ($apc_cache_hits >= 2)) {
 			debug('Cache key found in APC, we\'ll try to load cache file from disk');
 		} else {
 			debug('Cache key not found in APC');
 		}
 	}
-	if ($check_cache) {
+	if ($check_cache === true) {
 		$cache = get_cache();
 		if ($data = $cache->load($cache_id)) {
 			if ($debug_mode) {
-				debug('Loaded cached copy');
+				debug('Loaded cached copy of RSS');
 				exit;
 			}
 			if ($format == 'json') {
@@ -420,7 +448,7 @@ if ($options->caching) {
 // Set Expires header
 //////////////////////////////////
 if (!$debug_mode) {
-	header('Expires: ' . gmdate('D, d M Y H:i:s', time()+(60*10)) . ' GMT');
+	header('Expires: ' . gmdate('D, d M Y H:i:s', time()+ (isset($options->cache_ttl) ? $options->cache_ttl : 10*60)) . ' GMT');
 }
 
 //////////////////////////////////
@@ -431,6 +459,7 @@ $http->debug = $debug_mode;
 $http->userAgentMap = $options->user_agents;
 $http->headerOnlyTypes = array_keys($options->content_type_exc);
 $http->rewriteUrls = $options->rewrite_url;
+//$http->initCache($options->cache_dir, $options->cache_directory_level, $options->cache_cleanup, isset($options->http_cache_ttl) ? $options->http_cache_ttl : 12*60*60);
 
 //////////////////////////////////
 // Set up Content Extractor
@@ -474,6 +503,14 @@ if (!$html_only) {
 	}
 	// from now on, we'll identify ourselves as a browser
 	$http->userAgentDefault = HumbleHttpAgent::UA_BROWSER;
+	// Enable caching for multiple downloader
+	if (class_exists('HttpRequestPool')) {
+		$http->method = $http::METHOD_REQUEST_POOL;
+	} elseif (function_exists('curl_multi_init')) {
+		$http->method = $http::METHOD_CURL_MULTI;
+	} else {
+		$http->method = $http::METHOD_FILE_GET_CONTENTS;
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -534,7 +571,7 @@ if ($img_url = $feed->get_image_url()) {
 ////////////////////////////////////////////
 // Loop through feed items
 ////////////////////////////////////////////
-$items = $feed->get_items(0, $max);	
+$items = $feed->get_items(0, $max);
 // Request all feed items in parallel (if supported)
 $urls_sanitized = array();
 $urls = array();
@@ -542,54 +579,57 @@ foreach ($items as $key => $item) {
 	$permalink = htmlspecialchars_decode($item->get_permalink());
 	// Colons in URL path segments get encoded by SimplePie, yet some sites expect them unencoded
 	$permalink = str_replace('%3A', ':', $permalink);
-	// validateUrl() strips non-ascii characters
 	// simplepie already sanitizes URLs so let's not do it again here.
-	//$permalink = $http->validateUrl($permalink);
-	if ($permalink) {
-		$urls_sanitized[] = $permalink;
-	}
-	$urls[$key] = $permalink;
+	if ($permalink && !is_cached($permalink)) $urls_sanitized[] = $permalink;
+	$urls[$key] = encodeURI($permalink);
 }
 debug('--------');
 debug('Fetching feed items');
 $http->fetchAll($urls_sanitized);
-//$http->cacheAll();
 
 // count number of items added to full feed
 $item_count = 0;
 
 foreach ($items as $key => $item) {
 	debug('--------');
-	debug('Processing feed item '.($item_count+1));
+
 	$do_content_extraction = true;
-	$extract_result = false;
+	debug('Processing feed item '.sprintf('%02d', $item_count+1).'.');
+
+	$extraction_successful = false;
 	$text_sample = null;
 	$permalink = $urls[$key];
 	debug("Item URL: $permalink");
+
 	$extracted_title = '';
 	$feed_item_title = $item->get_title();
 	if ($feed_item_title !== null) {
 		$feed_item_title = strip_tags(htmlspecialchars_decode($feed_item_title));
 	}
+
 	$newitem = $output->createNewItem();
 	$newitem->setTitle($feed_item_title);
-	if ($valid_key && isset($_GET['pubsub'])) { // used only on fivefilters.org at the moment
-		if ($permalink !== false) {
-			$newitem->setLink('http://fivefilters.org/content-only/redirect.php?url='.urlencode($permalink));
+
+		if (isset($permalink) && is_string($permalink)) {
+				$newitem->setLink($permalink);
 		} else {
-			$newitem->setLink('http://fivefilters.org/content-only/redirect.php?url='.urlencode($item->get_permalink()));
+				$permalink = $item->get_permalink();
+				$newitem->setLink($permalink);
 		}
-	} else {
-		if ($permalink !== false) {
-			$newitem->setLink($permalink);
-		} else {
-			$newitem->setLink($item->get_permalink());
+
+		if (isset($permalink) && is_string($permalink) && strlen($permalink) < 9) {
+			 continue;
 		}
-	}
+
 	//if ($permalink && ($response = $http->get($permalink, true)) && $response['status_code'] < 300) {
 	// Allowing error codes - some sites return correct content with error status
 	// e.g. prospectmagazine.co.uk returns 403
-	if ($permalink && ($response = $http->get($permalink, true)) && ($response['status_code'] < 300 || $response['status_code'] > 400)) {
+		$cached_page = is_cached($permalink);
+		if ($cached_page) {
+			debug('Loading processed page form cache...');
+			$html = get_cached($permalink);
+			$extraction_successful = true;
+		} else if ((($response = $http->get($permalink, true)) && ($response['status_code'] < 300 || $response['status_code'] > 400))) {
 		$effective_url = $response['effective_url'];
 		if (!url_allowed($effective_url)) continue;
 		// check if action defined for returned Content-Type
@@ -635,7 +675,7 @@ foreach ($items as $key => $item) {
 				if ($do_content_extraction) {
 					$html = $single_page_response['body'];
 					// remove strange things
-					$html = str_replace('</[>', '', $html);	
+					$html = str_replace('</[>', '', $html);
 					$html = convert_to_utf8($html, $single_page_response['headers']);
 					debug("Retrieved single-page view from $effective_url");
 				}
@@ -645,13 +685,13 @@ foreach ($items as $key => $item) {
 		if ($do_content_extraction) {
 			debug('--------');
 			debug('Attempting to extract content');
-			$extract_result = $extractor->process($html, $effective_url);
+			$extraction_successful = $extractor->process($html, $effective_url);
 			$readability = $extractor->readability;
-			$content_block = ($extract_result) ? $extractor->getContent() : null;			
-			$extracted_title = ($extract_result) ? $extractor->getTitle() : '';
+			$content_block = ($extraction_successful) ? $extractor->getContent() : null;
+			$extracted_title = ($extraction_successful) ? $extractor->getTitle() : '';
 			// Deal with multi-page articles
 			//die('Next: '.$extractor->getNextPageUrl());
-			$is_multi_page = (!$is_single_page && $extract_result && $extractor->getNextPageUrl());
+			$is_multi_page = (!$is_single_page && $extraction_successful && $extractor->getNextPageUrl());
 			if ($options->multipage && $is_multi_page && $options->content) {
 				debug('--------');
 				debug('Attempting to process multi-page article');
@@ -665,7 +705,7 @@ foreach ($items as $key => $item) {
 						// check it's not what we have already!
 						if (!in_array($next_page_url, $multi_page_urls)) {
 							// it's not, so let's attempt to fetch it
-							$multi_page_urls[] = $next_page_url;						
+							$multi_page_urls[] = $next_page_url;
 							$_prev_ref = $http->referer;
 							if (($response = $http->get($next_page_url, true)) && $response['status_code'] < 300) {
 								// make sure mime type is not something with a different action associated
@@ -715,7 +755,7 @@ foreach ($items as $key => $item) {
 	}
 	if ($do_content_extraction) {
 		// if we failed to extract content...
-		if (!$extract_result) {
+		if (!$extraction_successful) {
 			if ($exclude_on_fail) {
 				debug('Failed to extract, so skipping (due to exclude on fail parameter)');
 				continue; // skip this and move to next item
@@ -725,51 +765,51 @@ foreach ($items as $key => $item) {
 			// keep the original item description
 			$html .= $item->get_description();
 		} else {
-			$readability->clean($content_block, 'select');
-			if ($options->rewrite_relative_urls) makeAbsolute($effective_url, $content_block);
-			// footnotes
-			if (($links == 'footnotes') && (strpos($effective_url, 'wikipedia.org') === false)) {
-				$readability->addFootnotes($content_block);
+			if (!$cached_page) {
+				$readability->clean($content_block, 'select');
+				if ($options->rewrite_relative_urls) makeAbsolute($effective_url, $content_block);
+				// footnotes
+				if (($links == 'footnotes') && (strpos($effective_url, 'wikipedia.org') === false)) {
+					$readability->addFootnotes($content_block);
+				}
+				// remove nesting: <div><div><div><p>test</p></div></div></div> = <p>test</p>
+				while ($content_block->childNodes->length == 1 && $content_block->firstChild->nodeType === XML_ELEMENT_NODE) {
+					// only follow these tag names
+					if (!in_array(strtolower($content_block->tagName), array('div', 'article', 'section', 'header', 'footer'))) break;
+					$content_block = $content_block->firstChild;
+				}
+				// convert content block to HTML string
+				// Need to preserve things like body: //img[@id='feature']
+
+				if (in_array(strtolower($content_block->tagName), array('div', 'article', 'section', 'header', 'footer'))) {
+					$html = $content_block->innerHTML;
+				} else {
+					$html = $content_block->ownerDocument->saveXML($content_block); // essentially outerHTML
+				}
+
+				// post-processing cleanup
+				$html = preg_replace('!<p>[\s\h\v]*</p>!u', '', $html);
+				if ($links == 'remove') {
+					$html = preg_replace('!</?a[^>]*>!', '', $html);
+				}
+				// get text sample for language detection
+				$text_sample = strip_tags(substr($html, 0, 500));
+				if ($options->message_to_prepend) $html = make_substitutions($options->message_to_prepend).$html;
+				if ($options->message_to_append) $html .= make_substitutions($options->message_to_append);
+
+				// filter XSS
+				if ($xss_filter) {
+					debug('Filtering HTML to remove XSS');
+					$html = htmLawed::hl($html, array('safe'=>1, 'deny_attribute'=>'style', 'comment'=>1, 'cdata'=>1));
+				}
+
+				set_cached($permalink, $html);
 			}
-			// remove nesting: <div><div><div><p>test</p></div></div></div> = <p>test</p>
-			while ($content_block->childNodes->length == 1 && $content_block->firstChild->nodeType === XML_ELEMENT_NODE) {
-				// only follow these tag names
-				if (!in_array(strtolower($content_block->tagName), array('div', 'article', 'section', 'header', 'footer'))) break;
-				//$html = $content_block->firstChild->innerHTML; // FTR 2.9.5
-				$content_block = $content_block->firstChild;
-			}
-			// convert content block to HTML string
-			// Need to preserve things like body: //img[@id='feature']
-			if (in_array(strtolower($content_block->tagName), array('div', 'article', 'section', 'header', 'footer'))) {
-				$html = $content_block->innerHTML;
-			} else {
-				$html = $content_block->ownerDocument->saveXML($content_block); // essentially outerHTML
-			}
-			//unset($content_block);
-			// post-processing cleanup
-			$html = preg_replace('!<p>[\s\h\v]*</p>!u', '', $html);
-			if ($links == 'remove') {
-				$html = preg_replace('!</?a[^>]*>!', '', $html);
-			}
-			// get text sample for language detection
-			$text_sample = strip_tags(substr($html, 0, 500));
-			$html = make_substitutions($options->message_to_prepend).$html;
-			$html .= make_substitutions($options->message_to_append);
 		}
 	}
 
-	if ($valid_key && isset($_GET['pubsub'])) { // used only on fivefilters.org at the moment
-		$newitem->addElement('guid', 'http://fivefilters.org/content-only/redirect.php?url='.urlencode($item->get_permalink()), array('isPermaLink'=>'false'));
-	} else {
-		$newitem->addElement('guid', $item->get_permalink(), array('isPermaLink'=>'true'));
-	}
-	
-	// filter xss?
-	if ($xss_filter) {
-		debug('Filtering HTML to remove XSS');
-		$html = htmLawed::hl($html, array('safe'=>1, 'deny_attribute'=>'style', 'comment'=>1, 'cdata'=>1));
-	}
-	
+	$newitem->addElement('guid', $item->get_permalink(), array('isPermaLink'=>'true'));
+
 	// add content
 	if ($options->summary === true) {
 		// get summary
@@ -788,21 +828,22 @@ foreach ($items as $key => $item) {
 				$summary = $html;
 			}
 		}
-		unset($_paras, $_para);
 		$summary = get_excerpt($summary);
 		$newitem->setDescription($summary);
 		if ($options->content) $newitem->setElement('content:encoded', $html);
+		unset($_paras, $_para, $content_block);
 	} else {
 		if ($options->content) $newitem->setDescription($html);
+		unset($content_block);
 	}
-	
+
 	// set date
 	if ((int)$item->get_date('U') > 0) {
 		$newitem->setDate((int)$item->get_date('U'));
 	} elseif ($extractor->getDate()) {
 		$newitem->setDate($extractor->getDate());
 	}
-	
+
 	// add authors
 	if ($authors = $item->get_authors()) {
 		foreach ($authors as $author) {
@@ -822,7 +863,7 @@ foreach ($items as $key => $item) {
 			break;
 		}
 	}
-	
+
 	// add language
 	if ($detect_language) {
 		$language = $extractor->getLanguage();
@@ -835,7 +876,7 @@ foreach ($items as $key => $item) {
 					$res = $php_cld($text_sample);
 					if (is_array($res) && count($res) > 0) {
 						$language = $res[0]['code'];
-					}	
+					}
 				} else {
 					//die('what');
 					// Use PEAR's Text_LanguageDetect
@@ -849,27 +890,27 @@ foreach ($items as $key => $item) {
 					}
 				}
 			} catch (Exception $e) {
-				//die('error: '.$e);	
+				//die('error: '.$e);
 				// do nothing
 			}
 		}
-		if ($language && (strlen($language) < 7)) {	
+		if ($language && (strlen($language) < 7)) {
 			$newitem->addElement('dc:language', $language);
 		}
 	}
-	
+
 	// add MIME type (if it appeared in our exclusions lists)
 	if (isset($mime_info['mime'])) $newitem->addElement('dc:format', $mime_info['mime']);
 	// add effective URL (URL after redirects)
 	if (isset($effective_url)) {
 		//TODO: ensure $effective_url is valid witout - sometimes it causes problems, e.g.
-		//http://www.siasat.pk/forum/showthread.php?108883-Pakistan-Chowk-by-Rana-Mubashir-–-25th-March-2012-Special-Program-from-Liari-(Karachi)
+		//http://www.siasat.pk/forum/showthread.php?108883-Pakistan-Chowk-by-Rana-Mubashir--25th-March-2012-Special-Program-from-Liari-(Karachi)
 		//temporary measure: use utf8_encode()
 		$newitem->addElement('dc:identifier', remove_url_cruft(utf8_encode($effective_url)));
 	} else {
 		$newitem->addElement('dc:identifier', remove_url_cruft($item->get_permalink()));
 	}
-	
+
 	// add categories
 	if ($categories = $item->get_categories()) {
 		foreach ($categories as $category) {
@@ -878,7 +919,7 @@ foreach ($items as $key => $item) {
 			}
 		}
 	}
-	
+
 	// check for enclosures
 	if ($options->keep_enclosures) {
 		if ($enclosures = $item->get_enclosures()) {
@@ -924,9 +965,9 @@ if ($debug_mode) {
 if (!$debug_mode) {
 	if ($callback) echo "$callback("; // if $callback is set, $format also == 'json'
 	if ($format == 'json') $output->setFormat(($callback === null) ? JSON : JSONP);
-	$add_to_cache = $options->caching;
+	$add_to_cache = ($options->caching === true);
 	// is smart cache mode enabled?
-	if ($add_to_cache && $options->apc && $options->smart_cache) {
+	if ($add_to_cache && $options->apc === true && $options->smart_cache === true) {
 		// yes, so only cache if this is the second request for this URL
 		$add_to_cache = ($apc_cache_hits >= 2);
 		// purge cache
@@ -951,7 +992,7 @@ if (!$debug_mode) {
 			// do not cache - in case of temporary server glitch at source URL
 		} else {
 			$cache = get_cache();
-			if ($add_to_cache) $cache->save($output, $cache_id);
+			$cache->save($output, $cache_id);
 		}
 		echo $output;
 	} else {
@@ -964,8 +1005,7 @@ if (!$debug_mode) {
 // HELPER FUNCTIONS
 ///////////////////////////////
 
-// Adapted from WordPress
-// http://core.trac.wordpress.org/browser/tags/3.5.1/wp-includes/formatting.php#L2173
+// Adapted from WordPress: http://core.trac.wordpress.org/browser/tags/3.5.1/wp-includes/formatting.php#L2173
 function get_excerpt($text, $num_words=55, $more=null) {
 	if (null === $more) $more = '&hellip;';
 	$text = strip_tags($text);
@@ -1061,30 +1101,30 @@ function convert_to_utf8($html, $header=null)
 		if (!$encoding || (strtolower($encoding) == 'iso-8859-1')) {
 			// replace MS Word smart qutoes
 			$trans = array();
-			$trans[chr(130)] = '&sbquo;';    // Single Low-9 Quotation Mark
-			$trans[chr(131)] = '&fnof;';    // Latin Small Letter F With Hook
-			$trans[chr(132)] = '&bdquo;';    // Double Low-9 Quotation Mark
-			$trans[chr(133)] = '&hellip;';    // Horizontal Ellipsis
-			$trans[chr(134)] = '&dagger;';    // Dagger
-			$trans[chr(135)] = '&Dagger;';    // Double Dagger
-			$trans[chr(136)] = '&circ;';    // Modifier Letter Circumflex Accent
-			$trans[chr(137)] = '&permil;';    // Per Mille Sign
-			$trans[chr(138)] = '&Scaron;';    // Latin Capital Letter S With Caron
-			$trans[chr(139)] = '&lsaquo;';    // Single Left-Pointing Angle Quotation Mark
-			$trans[chr(140)] = '&OElig;';    // Latin Capital Ligature OE
-			$trans[chr(145)] = '&lsquo;';    // Left Single Quotation Mark
-			$trans[chr(146)] = '&rsquo;';    // Right Single Quotation Mark
-			$trans[chr(147)] = '&ldquo;';    // Left Double Quotation Mark
-			$trans[chr(148)] = '&rdquo;';    // Right Double Quotation Mark
-			$trans[chr(149)] = '&bull;';    // Bullet
-			$trans[chr(150)] = '&ndash;';    // En Dash
-			$trans[chr(151)] = '&mdash;';    // Em Dash
-			$trans[chr(152)] = '&tilde;';    // Small Tilde
-			$trans[chr(153)] = '&trade;';    // Trade Mark Sign
-			$trans[chr(154)] = '&scaron;';    // Latin Small Letter S With Caron
-			$trans[chr(155)] = '&rsaquo;';    // Single Right-Pointing Angle Quotation Mark
-			$trans[chr(156)] = '&oelig;';    // Latin Small Ligature OE
-			$trans[chr(159)] = '&Yuml;';    // Latin Capital Letter Y With Diaeresis
+			$trans[chr(130)] = '&sbquo;';	// Single Low-9 Quotation Mark
+			$trans[chr(131)] = '&fnof;';	// Latin Small Letter F With Hook
+			$trans[chr(132)] = '&bdquo;';	// Double Low-9 Quotation Mark
+			$trans[chr(133)] = '&hellip;';	// Horizontal Ellipsis
+			$trans[chr(134)] = '&dagger;';	// Dagger
+			$trans[chr(135)] = '&Dagger;';	// Double Dagger
+			$trans[chr(136)] = '&circ;';	// Modifier Letter Circumflex Accent
+			$trans[chr(137)] = '&permil;';	// Per Mille Sign
+			$trans[chr(138)] = '&Scaron;';	// Latin Capital Letter S With Caron
+			$trans[chr(139)] = '&lsaquo;';	// Single Left-Pointing Angle Quotation Mark
+			$trans[chr(140)] = '&OElig;';	// Latin Capital Ligature OE
+			$trans[chr(145)] = '&lsquo;';	// Left Single Quotation Mark
+			$trans[chr(146)] = '&rsquo;';	// Right Single Quotation Mark
+			$trans[chr(147)] = '&ldquo;';	// Left Double Quotation Mark
+			$trans[chr(148)] = '&rdquo;';	// Right Double Quotation Mark
+			$trans[chr(149)] = '&bull;';	// Bullet
+			$trans[chr(150)] = '&ndash;';	// En Dash
+			$trans[chr(151)] = '&mdash;';	// Em Dash
+			$trans[chr(152)] = '&tilde;';	// Small Tilde
+			$trans[chr(153)] = '&trade;';	// Trade Mark Sign
+			$trans[chr(154)] = '&scaron;';	// Latin Small Letter S With Caron
+			$trans[chr(155)] = '&rsaquo;';	// Single Right-Pointing Angle Quotation Mark
+			$trans[chr(156)] = '&oelig;';	// Latin Small Ligature OE
+			$trans[chr(159)] = '&Yuml;';	// Latin Capital Letter Y With Diaeresis
 			$html = strtr($html, $trans);
 		}
 		if (!$encoding) {
@@ -1118,7 +1158,7 @@ function makeAbsolute($base, $elem) {
 }
 function makeAbsoluteAttr($base, $e, $attr) {
 	if ($e->hasAttribute($attr)) {
-		// Trim leading and trailing white space. I don't really like this but 
+		// Trim leading and trailing white space. I don't really like this but
 		// unfortunately it does appear on some sites. e.g.  <img src=" /path/to/image.jpg" />
 		$url = trim(str_replace('%20', ' ', $e->getAttribute($attr)));
 		$url = str_replace(' ', '%20', $url);
@@ -1242,10 +1282,12 @@ function make_substitutions($string) {
 
 function get_cache() {
 	global $options, $valid_key;
+	if (!$options->caching) return;
 	static $cache = null;
 	if ($cache === null) {
+		debug('RSS cache TTL is set to '.(isset($options->cache_ttl) ? $options->cache_ttl : 10*60).' sec.');
 		$frontendOptions = array(
-			'lifetime' => 10*60, // cache lifetime of 10 minutes
+			'lifetime' => isset($options->cache_ttl) ? $options->cache_ttl : 10*60, // cache lifetime of 10 minutes
 			'automatic_serialization' => false,
 			'write_control' => false,
 			'automatic_cleaning_factor' => $options->cache_cleanup,
@@ -1267,11 +1309,56 @@ function get_cache() {
 	return $cache;
 }
 
+function get_url_cache() {
+	global $options, $valid_key;
+	if (!$options->caching) return;
+	static $url_cache = null;
+	if ($url_cache === null) {
+		debug('HTTP cache TTL is set to '.(isset($options->http_cache_ttl) ? $options->http_cache_ttl : 3*24*60*60).' sec.');
+		$frontendOptions = array(
+			'lifetime' => isset($options->http_cache_ttl) ? $options->http_cache_ttl : 3*24*60*60, // cache lifetime
+			'automatic_serialization' => false,
+			'write_control' => false,
+			'automatic_cleaning_factor' => $options->cache_cleanup,
+			'ignore_user_abort' => false
+		);
+		$backendOptions = array(
+			'cache_dir' => $options->cache_dir.'/urls/', // directory where to put the cache files
+			'file_locking' => false,
+			'read_control' => true,
+			'read_control_type' => 'strlen',
+			'hashed_directory_level' => $options->cache_directory_level,
+			'hashed_directory_perm' => 0777,
+			'cache_file_perm' => 0664,
+			'file_name_prefix' => 'ff'
+		);
+		// getting a Zend_Cache_Core object
+		$url_cache = Zend_Cache::factory('Core', 'File', $frontendOptions, $backendOptions);
+	}
+	return $url_cache;
+}
+
+function is_cached($url) {
+	if (!($cache = get_url_cache()) || !$url) return false;
+	return ($cache->test('request'.md5($url)) !== false);
+}
+
+function set_cached($url, $data) {
+	if (!($cache = get_url_cache()) || !$url || !$data) return;
+	$cache->save(serialize($data), 'request'.md5($url));
+}
+
+function get_cached($url) {
+	if (!($cache = get_url_cache()) || !$url) return null;
+	return unserialize($cache->load('request'.md5($url)));
+}
+
 function debug($msg) {
 	global $debug_mode;
 	if ($debug_mode) {
-		echo '* ',$msg,"\n";
+		echo "* ",$msg,"<br />";
 		ob_flush();
 		flush();
 	}
 }
+?>

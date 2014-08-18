@@ -24,7 +24,7 @@ $options->enabled = true;
 // Debug mode
 // ----------------------
 // Enable or disable debugging. When enabled debugging works by passing
-// &debug to the makefulltextfeed.php querystring.
+// &debug=1 to the makefulltextfeed.php querystring.
 // Valid values:
 // true or 'user' (default) - let user decide
 // 'admin' - debug works only for logged in admin users
@@ -201,7 +201,7 @@ $options->registration_key = '';
 // If overriding with an environment variable, separate username and password with a colon, e.g.:
 // ftr_admin_credentials: admin:my-secret-password
 // Example: $options->admin_credentials = array('username'=>'admin', 'password'=>'my-secret-password');
-$options->admin_credentials = array('username'=>'admin', 'password'=>'');
+$options->admin_credentials = array('username'=>'admin0', 'password'=>'admin0');
 
 // URLs to allow
 // ----------------------

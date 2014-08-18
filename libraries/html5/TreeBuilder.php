@@ -3164,12 +3164,11 @@ class HTML5_TreeBuilder {
 
         if (!empty($token['attr'])) {
             foreach($token['attr'] as $attr) {
+                // mike@macgirvin.com 2011-11-17, check attribute name for
+                // validity (ignoring extenders and combiners) as illegal chars in names
+                // causes everything to abort
 
-				// mike@macgirvin.com 2011-11-17, check attribute name for
-				// validity (ignoring extenders and combiners) as illegal chars in names
-				// causes everything to abort
-
- 				$valid = preg_match('/^[a-zA-Z\_\:]([\-a-zA-Z0-9\_\:\.]+$)/',$attr['name']);
+                $valid = preg_match('/^[a-zA-Z\_\:]([\-a-zA-Z0-9\_\:\.]+$)/',$attr['name']);
                 if($attr['name'] && (!$el->hasAttribute($attr['name'])) && ($valid)) {
                     $el->setAttribute($attr['name'], $attr['value']);
                 }
@@ -3846,4 +3845,3 @@ class HTML5_TreeBuilder {
         }
     }
 }
-
